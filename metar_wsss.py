@@ -6,7 +6,7 @@ import time
 import argparse
 import sys
 
-ICAO = "LTAC"
+ICAO = "MASUKAN_KODE_ICAO_DISINI"  # Ganti dengan ICAO yang diinginkan
 BASE_URL = "https://aviationweather.gov/api/data/metar"
 
 def get_field(metar, *keys):
@@ -158,7 +158,7 @@ def realtime_mode():
             # Hanya tampil kalau ada perubahan (raw_text atau waktu observasi berbeda)
             if raw_text != last_raw_text or obs_time != last_obs_time:
                 print("=" * 80)
-                print(f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}")
+                print(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}")
                 print(f"observation_time : {obs_time}")
                 print(f"raw_text         : {raw_text}")
                 print(f"report_type      : {report_type}")
@@ -207,3 +207,8 @@ if __name__ == "__main__":
         realtime_mode()
     else:
         parser.print_help()
+
+# Sumber data ini diambil dari NOAA jadi: 
+# Kode sumber ini sebaiknya digunakan hanya untuk bandara yang berada di amerika serikat
+# Banyak bandara eropa yang terkadang memiliki delay dan tidak stabil untuk update data real-tim
+# Beberapa bandara di asia juga terkadang mengalami masalah serupa, jadi pastikan untuk melakukan testing terlebih dahulu sebelum digunakan untuk monitoring real-time.
