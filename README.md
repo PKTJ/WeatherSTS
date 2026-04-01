@@ -1,14 +1,23 @@
 # METAR Script
 
-Script Python untuk mengambil data METAR dari API AviationWeather (NOAA), baik untuk riwayat harian maupun monitoring real-time.
+Kumpulan script Python untuk mengambil data METAR dari dua sumber:
 
-## Fitur
+- NOAA (AviationWeather) untuk history dan monitoring real-time.
+- CheckWX untuk monitoring real-time decoded.
 
-- Ambil riwayat METAR untuk hari ini.
-- Ambil riwayat METAR untuk tanggal tertentu.
-- Monitoring METAR real-time (polling tiap 5 menit).
-- Ekspor data riwayat ke file CSV.
-- Deteksi tipe laporan `METAR` atau `SPECI`.
+## Penjelasan Penting
+
+Jika tujuan Anda adalah mengambil history METAR (hari ini atau tanggal tertentu), gunakan script NOAA:
+
+```bash
+python metar_NOAA.py ...
+```
+
+## Struktur Workspace
+
+- `metar_NOAA.py`: ambil history METAR dan monitoring real-time berbasis NOAA.
+- `metar_WXaggregator.py`: monitoring METAR real-time berbasis CheckWX (decoded).
+- `README.md`: dokumentasi penggunaan.
 
 ## Persyaratan
 
@@ -21,58 +30,87 @@ Install dependency:
 pip install requests
 ```
 
-## Struktur Workspace
+## Konfigurasi Awal
 
-- `metar_wsss.py`: script utama.
-- `README.md`: dokumentasi penggunaan.
+Sebelum menjalankan script, ubah konfigurasi berikut di file terkait:
 
-## Cara Menjalankan
+1. `metar_NOAA.py`
+- `ICAO = "MASUKAN_KODE_ICAO_DISINI"`
 
-Masuk ke folder project, lalu jalankan perintah berikut:
+2. `metar_WXaggregator.py`
+- `API_KEY = "MASUKAN_API_KEY"`
+- `ICAO = "MASUKAN_KODE_ICAO_DISINI"`
+
+## Penggunaan Script NOAA (History + Realtime)
+
+Gunakan script ini jika ingin data history METAR.
+
+Template command:
 
 ```bash
-python metar_wsss.py <mode> [opsi]
+python metar_NOAA.py <mode> [opsi]
 ```
 
-### 1. Ambil History Hari Ini
+### 1. History Hari Ini
 
 ```bash
-python metar_wsss.py today
+python metar_NOAA.py today
 ```
 
-Hasil:
+Output:
 
-- Mengambil data METAR untuk tanggal hari ini (UTC).
-- Menyimpan file CSV dengan format nama: `ICAO_YYYYMMDD.csv`.
+- Mengambil data METAR tanggal hari ini (UTC).
+- Menyimpan ke CSV dengan format nama `ICAO_YYYYMMDD.csv`.
 
-### 2. Ambil History Tanggal Tertentu
+### 2. History Tanggal Tertentu
 
 ```bash
-python metar_wsss.py history --date 2026-03-31
+python metar_NOAA.py history --date 2026-03-31
 ```
 
 Parameter:
 
-- `--date` wajib, format `YYYY-MM-DD`.
+- `--date` wajib dengan format `YYYY-MM-DD`.
 
-Hasil:
+Output:
 
 - Data difilter sesuai tanggal yang diminta.
-- Output disimpan ke CSV dengan nama `ICAO_YYYYMMDD.csv`.
+- Disimpan ke CSV dengan format nama `ICAO_YYYYMMDD.csv`.
 
-### 3. Monitoring Real-time
+### 3. Monitoring Real-time NOAA
 
 ```bash
-python metar_wsss.py realtime
+python metar_NOAA.py realtime
 ```
 
 Perilaku:
 
-- Script berjalan terus dan polling data terbaru setiap 5 menit.
-- Data hanya ditampilkan jika ada perubahan laporan terbaru.
+- Polling setiap 5 menit.
+- Menampilkan data hanya saat ada perubahan observasi terbaru.
 - Hentikan dengan `Ctrl + C`.
 
-## Contoh Kolom CSV Output
+### Bantuan Command NOAA
+
+```bash
+python metar_NOAA.py -h
+python metar_NOAA.py history -h
+```
+
+## Penggunaan Script CheckWX (Realtime Decoded)
+
+Script ini khusus monitoring real-time menggunakan endpoint decoded dari CheckWX.
+
+```bash
+python metar_WXaggregator.py
+```
+
+Perilaku:
+
+- Polling default setiap 5 menit (`POLL_INTERVAL = 300`).
+- Menampilkan data baru jika waktu observasi berubah.
+- Membutuhkan API key CheckWX yang valid.
+
+## Contoh Kolom Data yang Ditampilkan
 
 - `observation_time`
 - `raw_text`
@@ -84,17 +122,8 @@ Perilaku:
 - `visibility`
 - `pressure_mb`
 
-## Catatan Penting
+## Catatan
 
-- ICAO yang dipakai saat ini adalah nilai konstanta `ICAO` di script.
-- Pada file saat ini, nilainya adalah `LTAC`.
-- Jika ingin bandara lain, ubah variabel `ICAO` di `metar_wsss.py`.
-
-## Bantuan Command
-
-Untuk melihat bantuan mode:
-
-```bash
-python metar_wsss.py -h
-python metar_wsss.py history -h
-```
+- NOAA cocok untuk kebutuhan history dan bisa dipakai realtime.
+- CheckWX pada project ini dipakai untuk realtime decoded.
+- Untuk ganti bandara, ubah nilai `ICAO` di masing-masing script.
