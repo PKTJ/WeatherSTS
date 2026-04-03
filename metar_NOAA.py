@@ -5,9 +5,12 @@ from datetime import datetime, timedelta, timezone
 import time
 import argparse
 import sys
+from zoneinfo import ZoneInfo
 
 ICAO = "MASUKAN_KODE_ICAO_DISINI"  # Ganti dengan ICAO yang diinginkan
 BASE_URL = "https://aviationweather.gov/api/data/metar"
+STATION_INFO_URL = "https://aviationweather.gov/api/data/stationinfo"
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
 def get_field(metar, *keys):
     """Ambil field pertama yang tersedia dari beberapa kandidat key."""
@@ -56,6 +59,54 @@ def fetch_metar(hours=None):
         print(f"❌ Error fetching data: {e}")
         return []
 
+def get_station_latlon(icao):
+    """Ambil lat/lon stasiun dari ICAO."""
+    try:
+        response = requests.get(
+            STATION_INFO_URL,
+            params={"ids": icao, "format": "json"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        station = data[0] if isinstance(data, list) and data else data
+        if not isinstance(station, dict):
+            return None, None
+
+        lat = station.get("lat")
+        lon = station.get("lon")
+        return lat, lon
+    except Exception:
+        return None, None
+
+def resolve_station_timezone(icao):
+    """Deteksi timezone stasiun berdasarkan koordinat ICAO."""
+    lat, lon = get_station_latlon(icao)
+    if lat is None or lon is None:
+        return "UTC"
+
+    try:
+        response = requests.get(
+            OPEN_METEO_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "current": "temperature_2m",
+                "timezone": "auto",
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        data = response.json()
+        tz_name = data.get("timezone")
+        if tz_name:
+            return tz_name
+    except Exception:
+        pass
+
+    return "UTC"
+
 def is_speci(metar):
     """Deteksi SPECI atau METAR"""
     raw = get_field(metar, "raw_text", "rawOb") or ""
@@ -66,14 +117,19 @@ def is_speci(metar):
         return "SPECI"
     return "METAR"
 
-def save_to_csv(metars, filename):
+def save_to_csv(metars, filename, station_timezone="UTC"):
     """Simpan history ke CSV"""
     if not metars:
         print("Tidak ada data untuk disimpan.")
         return
     
-    fieldnames = ["observation_time", "raw_text", "report_type", "temp_c", "dewpoint_c", 
+    fieldnames = ["observation_time", "local_time", "raw_text", "report_type", "temp_c", "dewpoint_c", 
                   "wind_dir", "wind_speed_kt", "visibility", "pressure_mb"]
+
+    try:
+        tzinfo = ZoneInfo(station_timezone)
+    except Exception:
+        tzinfo = timezone.utc
     
     with open(filename, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -82,6 +138,7 @@ def save_to_csv(metars, filename):
             obs_dt = get_observation_datetime(m)
             writer.writerow({
                 "observation_time": obs_dt.isoformat() if obs_dt else "",
+                "local_time": obs_dt.astimezone(tzinfo).strftime("%Y-%m-%d %H:%M:%S") if obs_dt else "",
                 "raw_text": get_field(m, "raw_text", "rawOb"),
                 "report_type": is_speci(m),
                 "temp_c": get_field(m, "temp_c", "temp"),
@@ -122,7 +179,9 @@ def history_mode(target_date=None):
     
     if filtered:
         filename = f"{ICAO}_{date_str.replace('-', '')}.csv"
-        save_to_csv(filtered, filename)
+        station_timezone = resolve_station_timezone(ICAO)
+        print(f"Timezone stasiun {ICAO}: {station_timezone}")
+        save_to_csv(filtered, filename, station_timezone=station_timezone)
         print(f"Total data: {len(filtered)} record")
     else:
         print("❌ Tidak ada data ditemukan untuk tanggal tersebut.")
