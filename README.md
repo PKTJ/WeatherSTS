@@ -46,13 +46,7 @@ Sebelum menjalankan script, ubah konfigurasi berikut di file terkait:
 - `API_KEY = "MASUKAN_API_KEY_DISINI"`
 - `UNITS = "m"`
 
-## Cara Menjalankan Semua Script
-
-Jalankan semua perintah dari folder utama project:
-
-```bash
-cd "c:\Users\ROFFI\OneDrive - mhs.dinus.ac.id\Documents\GitHub\METAR_script"
-```
+## Cara Menjalankan Script
 
 ### 1. Script NOAA
 
