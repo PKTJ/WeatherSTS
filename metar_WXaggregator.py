@@ -2,6 +2,15 @@ import requests
 import time
 from datetime import datetime, timedelta
 
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+RESET = "\033[0m"
+
+
+def color_text(text, color):
+    return f"{color}{text}{RESET}"
+
 # ================== KONFIGURASI ==================
 API_KEY = "MASUKAN_API_KEY" # Ganti dengan API Key CheckWX 
 ICAO     = "MASUKAN_KODE_ICAO_DISINI" # Ganti dengan ICAO yang diinginkan
@@ -21,7 +30,7 @@ URL = f"https://api.checkwx.com/v2/metar/{ICAO}/decoded"
 last_observed = None
 # ================================================
 
-print(f"Monitoring METAR {ICAO} via CheckWX API (setiap {POLL_INTERVAL//60} menit)\n")
+print(color_text(f"Monitoring METAR {ICAO} via CheckWX API (setiap {POLL_INTERVAL//60} menit)\n", GREEN))
 
 while True:
     # Waktu sekarang dalam WIB (UTC+7)
@@ -50,7 +59,7 @@ while True:
                 
                 # Cek apakah ada data baru
                 if observed != last_observed:
-                    print(f"[{wib_time}] Data BARU diterima!")
+                    print(color_text(f"[{wib_time}] Data BARU diterima!", GREEN))
                     print(f"observation_time   : {observed}")
                     print(f"raw_text           : {raw_text}")
                     print(f"report_type        : {report_type}")
@@ -60,21 +69,21 @@ while True:
                     print(f"wind_speed_kt      : {wind_speed_kt}")
                     print(f"visibility         : {visibility}")
                     print(f"pressure_mb        : {pressure_mb}")
-                    print("-" * 80)
+                    print(color_text("-" * 80, GREEN))
                     
                     last_observed = observed
                 else:
-                    print(f"[{wib_time}] Tidak ada perubahan data...")
+                    print(color_text(f"[{wib_time}] Tidak ada perubahan data...", YELLOW))
         
         elif response.status_code == 429:
-            print(f"[{wib_time}] ⚠️ Rate limit exceeded (429). Tunggu sebentar...")
+            print(color_text(f"[{wib_time}] Rate limit exceeded (429). Tunggu sebentar...", YELLOW))
         else:
-            print(f"[{wib_time}] ❌ Error HTTP {response.status_code}: {response.text[:100]}")
+            print(color_text(f"[{wib_time}] Error HTTP {response.status_code}: {response.text[:100]}", RED))
             
     except requests.exceptions.RequestException as e:
-        print(f"[{wib_time}] ❌ Koneksi error: {e}")
+        print(color_text(f"[{wib_time}] Koneksi error: {e}", RED))
     except Exception as e:
-        print(f"[{wib_time}] ❌ Unexpected error: {e}")
+        print(color_text(f"[{wib_time}] Unexpected error: {e}", RED))
     
     # Tunggu sampai interval berikutnya
     time.sleep(POLL_INTERVAL)

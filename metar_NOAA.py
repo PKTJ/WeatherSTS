@@ -12,6 +12,15 @@ BASE_URL = "https://aviationweather.gov/api/data/metar"
 STATION_INFO_URL = "https://aviationweather.gov/api/data/stationinfo"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+RESET = "\033[0m"
+
+
+def color_text(text, color):
+    return f"{color}{text}{RESET}"
+
 def get_field(metar, *keys):
     """Ambil field pertama yang tersedia dari beberapa kandidat key."""
     for key in keys:
@@ -56,7 +65,7 @@ def fetch_metar(hours=None):
         else:
             return data if data else []
     except Exception as e:
-        print(f"❌ Error fetching data: {e}")
+        print(color_text(f"Error fetching data: {e}", RED))
         return []
 
 def get_station_latlon(icao):
@@ -120,7 +129,7 @@ def is_speci(metar):
 def save_to_csv(metars, filename, station_timezone="UTC"):
     """Simpan history ke CSV"""
     if not metars:
-        print("Tidak ada data untuk disimpan.")
+        print(color_text("Tidak ada data untuk disimpan.", YELLOW))
         return
     
     fieldnames = ["observation_time", "local_time", "raw_text", "report_type", "temp_c", "dewpoint_c", 
@@ -148,7 +157,7 @@ def save_to_csv(metars, filename, station_timezone="UTC"):
                 "visibility": get_field(m, "visibility", "visib"),
                 "pressure_mb": get_field(m, "altim_in_mb", "pressure_mb", "altim"),
             })
-    print(f"✅ Data berhasil disimpan ke: {filename}")
+            print(color_text(f"Data berhasil disimpan ke: {filename}", GREEN))
 
 def history_mode(target_date=None):
     """Mode 1 & 2: Ambil history"""
@@ -180,11 +189,11 @@ def history_mode(target_date=None):
     if filtered:
         filename = f"{ICAO}_{date_str.replace('-', '')}.csv"
         station_timezone = resolve_station_timezone(ICAO)
-        print(f"Timezone stasiun {ICAO}: {station_timezone}")
+        print(color_text(f"Timezone stasiun {ICAO}: {station_timezone}", YELLOW))
         save_to_csv(filtered, filename, station_timezone=station_timezone)
         print(f"Total data: {len(filtered)} record")
     else:
-        print("❌ Tidak ada data ditemukan untuk tanggal tersebut.")
+        print(color_text("Tidak ada data ditemukan untuk tanggal tersebut.", RED))
 
 def realtime_mode():
     """Mode 3: Real-time monitoring (jalan terus)"""
@@ -198,7 +207,7 @@ def realtime_mode():
         try:
             metars = fetch_metar()  # latest only
             if not metars:
-                print("⚠️  Tidak ada data dari server")
+                print(color_text("Tidak ada data dari server", YELLOW))
                 time.sleep(300)
                 continue
 
@@ -216,8 +225,8 @@ def realtime_mode():
 
             # Hanya tampil kalau ada perubahan (raw_text atau waktu observasi berbeda)
             if raw_text != last_raw_text or obs_time != last_obs_time:
-                print("=" * 80)
-                print(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}")
+                print(color_text("=" * 80, GREEN))
+                print(color_text(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}", GREEN))
                 print(f"observation_time : {obs_time}")
                 print(f"raw_text         : {raw_text}")
                 print(f"report_type      : {report_type}")
@@ -227,18 +236,18 @@ def realtime_mode():
                 print(f"wind_speed_kt    : {wind_speed_kt if wind_speed_kt is not None else '-'}")
                 print(f"visibility       : {visibility if visibility is not None else '-'}")
                 print(f"pressure_mb      : {pressure_mb if pressure_mb is not None else '-'}")
-                print("=" * 80)
+                print(color_text("=" * 80, GREEN))
                 
                 last_raw_text = raw_text
                 last_obs_time = obs_time
             else:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Tidak ada perubahan data...")
+                print(color_text(f"[{datetime.now().strftime('%H:%M:%S')}] Tidak ada perubahan data...", YELLOW))
 
         except KeyboardInterrupt:
-            print("\nReal-time monitoring dihentikan.")
+            print(color_text("\nReal-time monitoring dihentikan.", YELLOW))
             break
         except Exception as e:
-            print(f"Error: {e}")
+            print(color_text(f"Error: {e}", RED))
 
         time.sleep(300)  # 5 menit
 

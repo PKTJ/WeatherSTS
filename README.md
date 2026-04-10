@@ -41,74 +41,109 @@ Sebelum menjalankan script, ubah konfigurasi berikut di file terkait:
 - `API_KEY = "MASUKAN_API_KEY"`
 - `ICAO = "MASUKAN_KODE_ICAO_DISINI"`
 
-## Penggunaan Script NOAA (History + Realtime)
+3. `Weather Undergound/wunderground_pws_scraper.py`
+- `STATION_ID = "MASUKAN_DISINI"`
+- `API_KEY = "MASUKAN_API_KEY_DISINI"`
+- `UNITS = "m"`
 
-Gunakan script ini jika ingin data history METAR.
+## Cara Menjalankan Semua Script
 
-Template command:
+Jalankan semua perintah dari folder utama project:
 
 ```bash
-python metar_NOAA.py <mode> [opsi]
+cd "c:\Users\ROFFI\OneDrive - mhs.dinus.ac.id\Documents\GitHub\METAR_script"
 ```
 
-### 1. History Hari Ini
+### 1. Script NOAA
+
+File ini dipakai untuk history METAR dan realtime NOAA.
+
+#### Lihat bantuan
+
+```bash
+python metar_NOAA.py -h
+```
+
+#### Ambil history hari ini
 
 ```bash
 python metar_NOAA.py today
 ```
 
-Output:
-
-- Mengambil data METAR tanggal hari ini (UTC).
-- Menyimpan ke CSV dengan format nama `ICAO_YYYYMMDD.csv`.
-
-### 2. History Tanggal Tertentu
+#### Ambil history tanggal tertentu
 
 ```bash
 python metar_NOAA.py history --date 2026-03-31
 ```
 
-Parameter:
-
-- `--date` wajib dengan format `YYYY-MM-DD`.
-
-Output:
-
-- Data difilter sesuai tanggal yang diminta.
-- Disimpan ke CSV dengan format nama `ICAO_YYYYMMDD.csv`.
-
-### 3. Monitoring Real-time NOAA
+#### Monitoring realtime NOAA
 
 ```bash
 python metar_NOAA.py realtime
 ```
 
-Perilaku:
-
-- Polling setiap 5 menit.
-- Menampilkan data hanya saat ada perubahan observasi terbaru.
-- Hentikan dengan `Ctrl + C`.
-
-### Bantuan Command NOAA
+#### Bantuan khusus mode history
 
 ```bash
-python metar_NOAA.py -h
 python metar_NOAA.py history -h
 ```
 
-## Penggunaan Script CheckWX (Realtime Decoded)
+### 2. Script CheckWX
 
-Script ini khusus monitoring real-time menggunakan endpoint decoded dari CheckWX.
+File ini dipakai untuk monitoring realtime decoded dari CheckWX.
+
+#### Jalankan monitoring realtime
 
 ```bash
 python metar_WXaggregator.py
 ```
 
-Perilaku:
+### 3. Script Weather Underground
 
-- Polling default setiap 5 menit (`POLL_INTERVAL = 300`).
-- Menampilkan data baru jika waktu observasi berubah.
-- Membutuhkan API key CheckWX yang valid.
+File ini berada di folder `Weather Undergound` dan dipakai untuk data PWS Weather Underground.
+
+#### Jalankan history
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20260101
+```
+
+#### Jalankan polling realtime
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --mode poll --interval 60
+```
+
+### Cara Mendapatkan API Key Weather Underground
+
+1. Buka website Weather Underground.
+2. Pilih PWS yang ingin diambil datanya dengan mengisi `STASIUN_ID` sama dengan title PWS yang anda cari.
+3. Buka Developer Tools di browser.
+4. Masuk ke tab `Network`.
+5. Lakukan request dari halaman PWS tersebut.
+6. Cari request yang memanggil endpoint Weather.com / Weather Underground
+7. Di request URL atau headers, ambil nilai `current?apiKey=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` beruba 30 kombinasi unik angka dan huruf.
+
+Catatan penting:
+
+- Satu API key bisa digunakan untuk request lebih dari satu PWS selama aksesnya valid.
+- Jika ingin pindah PWS, cukup ganti `STATION_ID` di file script.
+- Format tanggal untuk mode history adalah `YYYYMMDD`, misalnya `20260101`.
+
+Panduan visual:
+
+![Panduan Weather Underground](Asset/Animation.gif)
+
+## Ringkasan Perintah
+
+```bash
+python metar_NOAA.py today
+python metar_NOAA.py history --date 2026-03-31
+python metar_NOAA.py realtime
+python metar_WXaggregator.py
+python wunderground_pws_scraper.py --mode history --date 20260101
+python wunderground_pws_scraper.py --mode poll --interval 60
+```
 
 ## Contoh Kolom Data yang Ditampilkan
 
