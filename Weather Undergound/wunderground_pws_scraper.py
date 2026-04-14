@@ -18,15 +18,6 @@ HEADERS = {
     "Accept": "application/json"
 }
 
-# Fungsi mengubah derajat angin menjadi teks (NNE, NE, ENE, dll)
-def degrees_to_direction(degrees):
-    if degrees is None:
-        return "-"
-    directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-                  "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
-    idx = round(degrees / 22.5) % 16
-    return directions[idx]
-
 # Fungsi format waktu seperti website (3:29 PM)
 def format_time(obs_time_local):
     if not obs_time_local:
@@ -83,6 +74,7 @@ def build_row_from_observation(obs):
     windspeed = metric.get("windSpeed")
     windgust = metric.get("windGust")
     winddir_deg = obs.get("winddir")
+    heat_index = metric.get("heatindexAvg") or metric.get("heatindex") or metric.get("heatindexHigh")
     pressure = metric.get("pressure") or ""
     precip_rate = metric.get("precipRate")
     precip_total = metric.get("precipTotal")
@@ -91,9 +83,10 @@ def build_row_from_observation(obs):
     return {
         "Time": format_time(obs.get("obsTimeLocal")),
         "Temp (°C)": temp,
+        "Heat Index (°C)": heat_index,
         "Dew Point (°C)": dewpt,
         "Humidity (%)": humidity,
-        "Wind Dir": degrees_to_direction(winddir_deg),
+        "Wind Direction (°)": winddir_deg,
         "Wind Speed (km/h)": windspeed,
         "Gust (km/h)": windgust,
         "Pressure (hPa)": pressure,
@@ -106,8 +99,9 @@ def print_poll_row(row):
     print(
         f"[{row['Time']}] "
         f"T={row['Temp (°C)']}°C | "
+        f"HI={row['Heat Index (°C)']}°C | "
         f"RH={row['Humidity (%)']}% | "
-        f"Wind={row['Wind Dir']} {row['Wind Speed (km/h)']} km/h | "
+        f"Wind={row['Wind Direction (°)']}° {row['Wind Speed (km/h)']} km/h | "
         f"Gust={row['Gust (km/h)']} km/h | "
         f"RainRate={row['Rain Rate (mm/h)']} mm/h | "
         f"RainTotal={row['Rain Total (mm)']} mm"
@@ -117,8 +111,8 @@ def append_row_to_csv(row, filename):
     file_exists = os.path.isfile(filename)
     with open(filename, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
-            "Time", "Temp (°C)", "Dew Point (°C)", "Humidity (%)",
-            "Wind Dir", "Wind Speed (km/h)", "Gust (km/h)",
+            "Time", "Temp (°C)", "Heat Index (°C)", "Dew Point (°C)", "Humidity (%)",
+            "Wind Direction (°)", "Wind Speed (km/h)", "Gust (km/h)",
             "Pressure (hPa)", "Rain Rate (mm/h)", "Rain Total (mm)",
             "Solar Radiation (W/m²)"
         ])
@@ -134,8 +128,8 @@ def save_to_csv(observations, filename, mode="a"):
     
     with open(filename, mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
-            "Time", "Temp (°C)", "Dew Point (°C)", "Humidity (%)",
-            "Wind Dir", "Wind Speed (km/h)", "Gust (km/h)",
+            "Time", "Temp (°C)", "Heat Index (°C)", "Dew Point (°C)", "Humidity (%)",
+            "Wind Direction (°)", "Wind Speed (km/h)", "Gust (km/h)",
             "Pressure (hPa)", "Rain Rate (mm/h)", "Rain Total (mm)",
             "Solar Radiation (W/m²)"
         ])
@@ -145,9 +139,9 @@ def save_to_csv(observations, filename, mode="a"):
         
         for obs in observations:
             metric = obs.get("metric", {})
-            
-            # Ambil nilai yang sesuai (history atau current)
+
             temp = metric.get("tempAvg") or metric.get("temp") or metric.get("tempHigh")
+            heat_index = metric.get("heatindexAvg") or metric.get("heatindex") or metric.get("heatindexHigh")
             dewpt = metric.get("dewptAvg") or metric.get("dewpt")
             humidity = obs.get("humidityAvg") or obs.get("humidity")
             windspeed = metric.get("windspeedAvg") or metric.get("windspeed")
@@ -161,9 +155,10 @@ def save_to_csv(observations, filename, mode="a"):
             row = {
                 "Time": format_time_24h(obs.get("obsTimeLocal")),
                 "Temp (°C)": temp,
+                "Heat Index (°C)": heat_index,
                 "Dew Point (°C)": dewpt,
                 "Humidity (%)": humidity,
-                "Wind Dir": degrees_to_direction(winddir_deg),
+                "Wind Direction (°)": winddir_deg,
                 "Wind Speed (km/h)": windspeed,
                 "Gust (km/h)": windgust,
                 "Pressure (hPa)": pressure,
