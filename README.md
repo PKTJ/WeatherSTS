@@ -142,14 +142,89 @@ python wunderground_pws_scraper.py --mode poll --interval 60
 ## Contoh Kolom Data yang Ditampilkan
 
 - `observation_time`
+- `local_time`
 - `raw_text`
 - `report_type`
 - `temp_c`
 - `dewpoint_c`
 - `wind_dir`
 - `wind_speed_kt`
+- `wind_gust_kt`
+- `wind_dir_var`
 - `visibility`
 - `pressure_mb`
+- `cloud_layers`
+- `wx_string`
+- `flight_category`
+- `auto`
+- `recent_weather`
+- `rvr`
+- `remarks`
+- `rmk_indicators`
+- `latitude`, `longitude`, `elevation_m`
+
+## Cara Membaca Output CSV NOAA
+
+Setiap baris CSV mewakili satu laporan METAR/SPECI pada waktu observasi tertentu.
+
+### 1) Waktu dan identitas laporan
+
+- `observation_time`: waktu observasi dalam UTC (format ISO), contoh `2026-04-14T03:00:00+00:00`.
+- `local_time`: waktu lokal stasiun (hasil konversi timezone), contoh `2026-04-14 10:00:00`.
+- `report_type`: tipe laporan, `METAR` (rutin) atau `SPECI` (laporan khusus saat ada perubahan signifikan).
+- `raw_text`: teks METAR mentah asli; ini referensi utama jika ingin validasi parsing.
+
+### 2) Suhu, kelembapan, tekanan
+
+- `temp_c`: suhu udara (C).
+- `dewpoint_c`: titik embun (C). Selisih kecil antara suhu dan dew point biasanya menandakan kelembapan tinggi.
+- `pressure_mb`: tekanan udara (hPa/mb).
+
+### 3) Angin
+
+- `wind_dir`: arah angin utama (derajat dari utara sejati) atau `VRB` jika variable.
+- `wind_speed_kt`: kecepatan angin rata-rata (knot).
+- `wind_gust_kt`: hembusan maksimum/gust (knot).
+- `wind_dir_var`: variasi arah angin.
+
+### 4) Visibilitas, awan, cuaca kini
+
+- `visibility`: jarak pandang horizontal (sesuai format dari sumber NOAA).
+- `cloud_layers`: lapisan awan format ringkas METAR.
+	- `FEW016` artinya awan sedikit di sekitar 1600 ft AGL.
+	- `BKN`/`OVC` biasanya dipakai untuk evaluasi ceiling operasional.
+- `wx_string`: fenomena cuaca saat ini (present weather).
+
+### 5) Kategori penerbangan dan kualitas laporan
+
+- `flight_category`: klasifikasi operasional (`VFR`, `MVFR`, `IFR`, `LIFR`).
+- `auto`: status otomatis/koreksi laporan.
+	- `AUTO`: laporan otomatis.
+	- `COR`: laporan koreksi.
+	- `AUTO/COR`: keduanya terdeteksi di raw report.
+
+### 6) Informasi lanjutan dari raw METAR
+
+- `recent_weather`: fenomena cuaca terbaru bertanda `RE...` (contoh `RERA`, `RETS`).
+- `rvr`: Runway Visual Range jika ada (contoh `R23/1200FT`).
+- `remarks`: bagian setelah token `RMK` pada raw METAR.
+- `rmk_indicators`: indikator penting yang terdeteksi di remarks, misalnya `WSHFT`, `PK WND`, `PRESFR`, `PRESRR`.
+
+### 7) Metadata stasiun
+
+- `latitude`, `longitude`: koordinat stasiun.
+- `elevation_m`: elevasi stasiun (meter).
+
+## Tips Interpretasi Cepat
+
+- Prioritas kondisi buruk: `flight_category` = `IFR/LIFR`, `visibility` rendah, `cloud_layers` dominan `BKN/OVC` rendah.
+- Potensi cuaca signifikan: `wx_string` berisi `TS`, `FG`, `SHRA`, atau simbol intensitas seperti `+`.
+- Potensi angin berbahaya: `wind_gust_kt` tinggi, `wind_dir_var` lebar (`xxxVyyy`), atau `VRB`.
+- Analisis event singkat: cek `recent_weather`, `rvr`, dan `rmk_indicators` untuk sinyal perubahan cepat.
+
+## Catatan Nilai Kosong di CSV
+
+Sebagian kolom bisa kosong karena tidak selalu dilaporkan pada setiap METAR, terutama `rvr`, `recent_weather`, `remarks`, atau `wind_gust_kt`. Nilai kosong bukan error selama file tetap terbentuk dan kolom lain terbaca normal.
 
 ## Catatan
 

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import time
 import argparse
 import sys
+import re
 from zoneinfo import ZoneInfo
 
 ICAO = "MASUKAN_KODE_ICAO_DISINI"  # Ganti dengan ICAO yang diinginkan
@@ -89,6 +90,30 @@ def get_station_latlon(icao):
     except Exception:
         return None, None
 
+
+def get_station_metadata(icao):
+    """Ambil metadata stasiun: latitude, longitude, elevation."""
+    try:
+        response = requests.get(
+            STATION_INFO_URL,
+            params={"ids": icao, "format": "json"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        station = data[0] if isinstance(data, list) and data else data
+        if not isinstance(station, dict):
+            return {"latitude": None, "longitude": None, "elevation_m": None}
+
+        return {
+            "latitude": station.get("lat"),
+            "longitude": station.get("lon"),
+            "elevation_m": station.get("elev"),
+        }
+    except Exception:
+        return {"latitude": None, "longitude": None, "elevation_m": None}
+
 def resolve_station_timezone(icao):
     """Deteksi timezone stasiun berdasarkan koordinat ICAO."""
     lat, lon = get_station_latlon(icao)
@@ -126,14 +151,143 @@ def is_speci(metar):
         return "SPECI"
     return "METAR"
 
-def save_to_csv(metars, filename, station_timezone="UTC"):
+
+def extract_cloud_layers(metar):
+    """Normalisasi cloud layers ke format METAR ringkas (mis. FEW016 BKN300)."""
+    layers = get_field(metar, "sky_condition", "skyCondition", "clouds", "cloudLayers")
+    if not isinstance(layers, list):
+        return ""
+
+    result = []
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        cover = (
+            layer.get("sky_cover")
+            or layer.get("coverage")
+            or layer.get("cover")
+            or layer.get("type")
+            or ""
+        )
+        base_raw = (
+            layer.get("cloud_base_ft_agl")
+            or layer.get("base")
+            or layer.get("base_feet_agl")
+            or layer.get("altitude")
+        )
+
+        base_code = ""
+        if base_raw is not None:
+            try:
+                base_ft = int(float(base_raw))
+                # METAR cloud base ditulis dalam ratusan feet, 3 digit.
+                base_code = f"{base_ft // 100:03d}"
+            except (ValueError, TypeError):
+                base_code = str(base_raw)
+
+        if cover and base_code:
+            result.append(f"{cover}{base_code}")
+        elif cover:
+            result.append(str(cover))
+
+    return " ".join(result)
+
+
+def extract_auto(metar):
+    raw = get_field(metar, "raw_text", "rawOb") or ""
+    auto = "AUTO" if " AUTO " in f" {raw} " else ""
+    cor = "COR" if " COR " in f" {raw} " else ""
+    if auto and cor:
+        return "AUTO/COR"
+    return auto or cor
+
+
+def extract_wx_string(metar):
+    wx_value = get_field(metar, "wx_string", "wxString", "present_weather")
+    if wx_value is None:
+        return ""
+    if isinstance(wx_value, list):
+        return " ".join(str(item) for item in wx_value)
+    return str(wx_value)
+
+
+def extract_recent_weather(metar):
+    raw = get_field(metar, "raw_text", "rawOb") or ""
+    matches = re.findall(r"\bRE[A-Z]{2,}\b", raw)
+    return ",".join(matches)
+
+
+def extract_wind_dir_var(metar):
+    wind_from = get_field(metar, "wind_dir_from", "wdirFrom")
+    wind_to = get_field(metar, "wind_dir_to", "wdirTo")
+    if wind_from is not None and wind_to is not None:
+        return f"{wind_from}V{wind_to}"
+
+    raw = get_field(metar, "raw_text", "rawOb") or ""
+    match = re.search(r"\b\d{3}V\d{3}\b", raw)
+    if match:
+        return match.group(0)
+
+    wind_dir = get_field(metar, "wind_dir", "wdir")
+    if str(wind_dir).upper() == "VRB":
+        return "VRB"
+    return ""
+
+
+def extract_rvr(metar):
+    raw = get_field(metar, "raw_text", "rawOb") or ""
+    matches = re.findall(r"\bR\d{2}[LCR]?/\w+\b", raw)
+    return ", ".join(matches)
+
+
+def extract_remarks(raw_text):
+    if " RMK " in f" {raw_text} ":
+        return raw_text.split(" RMK ", 1)[1].strip()
+    return ""
+
+
+def extract_rmk_indicators(remarks):
+    if not remarks:
+        return ""
+    indicators = []
+    for token in ["WSHFT", "PK WND", "PRESFR", "PRESRR"]:
+        if token in remarks:
+            indicators.append(token)
+    return ",".join(indicators)
+
+def save_to_csv(metars, filename, station_timezone="UTC", station_metadata=None):
     """Simpan history ke CSV"""
     if not metars:
         print(color_text("Tidak ada data untuk disimpan.", YELLOW))
         return
     
-    fieldnames = ["observation_time", "local_time", "raw_text", "report_type", "temp_c", "dewpoint_c", 
-                  "wind_dir", "wind_speed_kt", "visibility", "pressure_mb"]
+    fieldnames = [
+        "observation_time",
+        "local_time",
+        "raw_text",
+        "report_type",
+        "temp_c",
+        "dewpoint_c",
+        "wind_dir",
+        "wind_speed_kt",
+        "wind_gust_kt",
+        "wind_dir_var",
+        "visibility",
+        "pressure_mb",
+        "cloud_layers",
+        "wx_string",
+        "flight_category",
+        "auto",
+        "recent_weather",
+        "rvr",
+        "remarks",
+        "rmk_indicators",
+        "latitude",
+        "longitude",
+        "elevation_m",
+    ]
+
+    station_metadata = station_metadata or {}
 
     try:
         tzinfo = ZoneInfo(station_timezone)
@@ -145,19 +299,34 @@ def save_to_csv(metars, filename, station_timezone="UTC"):
         writer.writeheader()
         for m in metars:
             obs_dt = get_observation_datetime(m)
+            raw_text = get_field(m, "raw_text", "rawOb") or ""
+            remarks = extract_remarks(raw_text)
             writer.writerow({
                 "observation_time": obs_dt.isoformat() if obs_dt else "",
                 "local_time": obs_dt.astimezone(tzinfo).strftime("%Y-%m-%d %H:%M:%S") if obs_dt else "",
-                "raw_text": get_field(m, "raw_text", "rawOb"),
+                "raw_text": raw_text,
                 "report_type": is_speci(m),
                 "temp_c": get_field(m, "temp_c", "temp"),
                 "dewpoint_c": get_field(m, "dewpoint_c", "dewp"),
                 "wind_dir": get_field(m, "wind_dir", "wdir"),
                 "wind_speed_kt": get_field(m, "wind_speed_kt", "wspd"),
+                "wind_gust_kt": get_field(m, "wind_gust_kt", "wgst"),
+                "wind_dir_var": extract_wind_dir_var(m),
                 "visibility": get_field(m, "visibility", "visib"),
                 "pressure_mb": get_field(m, "altim_in_mb", "pressure_mb", "altim"),
+                "cloud_layers": extract_cloud_layers(m),
+                "wx_string": extract_wx_string(m),
+                "flight_category": get_field(m, "flight_category", "flightCategory"),
+                "auto": extract_auto(m),
+                "recent_weather": extract_recent_weather(m),
+                "rvr": extract_rvr(m),
+                "remarks": remarks,
+                "rmk_indicators": extract_rmk_indicators(remarks),
+                "latitude": station_metadata.get("latitude"),
+                "longitude": station_metadata.get("longitude"),
+                "elevation_m": station_metadata.get("elevation_m"),
             })
-            print(color_text(f"Data berhasil disimpan ke: {filename}", GREEN))
+    print(color_text(f"Data berhasil disimpan ke: {filename}", GREEN))
 
 def history_mode(target_date=None):
     """Mode 1 & 2: Ambil history"""
@@ -189,8 +358,14 @@ def history_mode(target_date=None):
     if filtered:
         filename = f"{ICAO}_{date_str.replace('-', '')}.csv"
         station_timezone = resolve_station_timezone(ICAO)
+        station_metadata = get_station_metadata(ICAO)
         print(color_text(f"Timezone stasiun {ICAO}: {station_timezone}", YELLOW))
-        save_to_csv(filtered, filename, station_timezone=station_timezone)
+        save_to_csv(
+            filtered,
+            filename,
+            station_timezone=station_timezone,
+            station_metadata=station_metadata,
+        )
         print(f"Total data: {len(filtered)} record")
     else:
         print(color_text("Tidak ada data ditemukan untuk tanggal tersebut.", RED))
