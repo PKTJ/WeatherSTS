@@ -28,12 +28,32 @@ python metar_NOAA.py ...
 ## Persyaratan
 
 - Python 3.9+
-- Paket Python: `requests`, `pandas`, `metar`, `pytz`
+- Paket Python ada di file `requirements.txt`
 
-Install dependency:
+Install dependency (disarankan):
 
 ```bash
-pip install requests pandas metar pytz
+pip install -r requirements.txt
+```
+
+Opsional (direkomendasikan): gunakan virtual environment
+
+```bash
+python -m venv .venv
+```
+
+Windows PowerShell:
+
+```bash
+& ".venv/Scripts/Activate.ps1"
+pip install -r requirements.txt
+```
+
+macOS/Linux:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ## Konfigurasi Awal
