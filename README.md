@@ -7,14 +7,6 @@ Kumpulan script Python untuk mengambil data METAR dari beberapa sumber:
 - Weather Underground (PWS) untuk history dan polling data stasiun personal.
 - OGIMET untuk history METAR berbasis rentang tanggal dan parsing lanjutan.
 
-## Penjelasan Penting
-
-Jika tujuan Anda adalah mengambil history METAR (hari ini atau tanggal tertentu), gunakan script NOAA:
-
-```bash
-python metar_NOAA.py ...
-```
-
 ## Struktur Workspace
 
 - `metar_NOAA.py`: ambil history METAR dan monitoring real-time berbasis NOAA.
@@ -60,19 +52,30 @@ pip install -r requirements.txt
 
 Sebelum menjalankan script, ubah konfigurasi berikut di file terkait:
 
-1. `metar_NOAA.py`
-- `ICAO = "MASUKAN_KODE_ICAO_DISINI"`
+### Apa itu ICAO?
 
-2. `metar_WXaggregator.py`
+ICAO adalah kode unik bandara yang terdiri dari 4 huruf.
+
+- Contoh: `WIII`, `WSSS`, `RJTT`, `KJFK`.
+- Di README ini, contoh perintah memakai placeholder `<ICAO_CODE>` supaya bisa diganti sesuai bandara tujuan Anda.
+
+### ICAO Diisi di Mana?
+
+- `metar_NOAA.py`: isi lewat argument command `--icao <ICAO_CODE>`.
+- `metar_OGIMET.py`: isi lewat argument command `--icao <ICAO_CODE>`.
+- `metar_WXaggregator.py`: isi langsung di variabel `ICAO = "..."` pada file script.
+- `Weather Undergound/wunderground_pws_scraper.py`: tidak memakai ICAO, tetapi memakai `STATION_ID`.
+
+1. `metar_WXaggregator.py`
 - `API_KEY = "MASUKAN_API_KEY"`
 - `ICAO = "MASUKAN_KODE_ICAO_DISINI"`
 
-3. `Weather Undergound/wunderground_pws_scraper.py`
+2. `Weather Undergound/wunderground_pws_scraper.py`
 - `STATION_ID = "MASUKAN_DISINI"`
 - `API_KEY = "MASUKAN_API_KEY_DISINI"`
 - `UNITS = "m"`
 
-4. `metar_OGIMET.py`
+3. `metar_OGIMET.py`
 - Jalankan dengan parameter `--icao` dan salah satu mode tanggal:
 	- single day: `--date YYYY-MM-DD`
 	- range day: `--start YYYY-MM-DD --end YYYY-MM-DD`
@@ -94,25 +97,25 @@ python metar_NOAA.py -h
 #### Ambil history hari ini
 
 ```bash
-python metar_NOAA.py today
+python metar_NOAA.py --icao <ICAO_CODE> today
 ```
 
 #### Ambil history tanggal tertentu
 
 ```bash
-python metar_NOAA.py history --date 2026-03-31
+python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
 ```
 
 #### Monitoring realtime NOAA
 
 ```bash
-python metar_NOAA.py realtime
+python metar_NOAA.py --icao <ICAO_CODE> realtime
 ```
 
 #### Bantuan khusus mode history
 
 ```bash
-python metar_NOAA.py history -h
+python metar_NOAA.py --icao <ICAO_CODE> history -h
 ```
 
 ### 2. Script CheckWX
@@ -148,19 +151,19 @@ File ini dipakai untuk mengambil history METAR dari OGIMET dan menyimpan ke CSV.
 #### Single date
 
 ```bash
-python metar_OGIMET.py --icao WSSS --date 2026-04-14
+python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
 ```
 
 #### Date range
 
 ```bash
-python metar_OGIMET.py --icao WSSS --start 2026-04-10 --end 2026-04-14
+python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 ```
 
 #### Custom folder output
 
 ```bash
-python metar_OGIMET.py --icao WSSS --date 2026-04-14 --output ogimet_data
+python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14 --output ogimet_data
 ```
 
 ### Cara Mendapatkan API Key Weather Underground
@@ -186,14 +189,14 @@ Panduan visual:
 ## Ringkasan Perintah
 
 ```bash
-python metar_NOAA.py today
-python metar_NOAA.py history --date 2026-03-31
-python metar_NOAA.py realtime
+python metar_NOAA.py --icao <ICAO_CODE> today
+python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
+python metar_NOAA.py --icao <ICAO_CODE> realtime
 python metar_WXaggregator.py
 python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20260101
 python "Weather Undergound/wunderground_pws_scraper.py" --mode poll --interval 60
-python metar_OGIMET.py --icao WSSS --date 2026-04-14
-python metar_OGIMET.py --icao WSSS --start 2026-04-10 --end 2026-04-14
+python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
+python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 ```
 
 ## Contoh Kolom Data yang Ditampilkan
@@ -288,4 +291,3 @@ Sebagian kolom bisa kosong karena tidak selalu dilaporkan pada setiap METAR, ter
 - NOAA cocok untuk kebutuhan history dan bisa dipakai realtime.
 - CheckWX pada project ini dipakai untuk realtime decoded.
 - OGIMET cocok untuk history batch/range dengan output CSV harian.
-- Untuk ganti bandara, ubah nilai `ICAO` di masing-masing script.

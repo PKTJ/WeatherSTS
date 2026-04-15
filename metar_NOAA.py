@@ -8,7 +8,6 @@ import sys
 import re
 from zoneinfo import ZoneInfo
 
-ICAO = "MASUKAN_KODE_ICAO_DISINI"  # Ganti dengan ICAO yang diinginkan
 BASE_URL = "https://aviationweather.gov/api/data/metar"
 STATION_INFO_URL = "https://aviationweather.gov/api/data/stationinfo"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
@@ -44,10 +43,10 @@ def get_observation_datetime(metar):
 
     return None
 
-def fetch_metar(hours=None):
+def fetch_metar(icao, hours=None):
     """Fetch METAR dari NOAA API"""
     params = {
-        "ids": ICAO,
+        "ids": icao,
         "format": "json"
     }
     if hours:
@@ -328,23 +327,23 @@ def save_to_csv(metars, filename, station_timezone="UTC", station_metadata=None)
             })
     print(color_text(f"Data berhasil disimpan ke: {filename}", GREEN))
 
-def history_mode(target_date=None):
+def history_mode(icao, target_date=None):
     """Mode 1 & 2: Ambil history"""
     now = datetime.now(timezone.utc)
     
     if target_date is None:  # Hari ini
         hours = 48  # aman untuk cover 24 jam + buffer
         date_str = now.strftime("%Y-%m-%d")
-        print(f"Mengambil data METAR {ICAO} untuk hari ini ({date_str})...")
+        print(f"Mengambil data METAR {icao} untuk hari ini ({date_str})...")
     else:
         target = datetime.strptime(target_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         hours = int((now - target).total_seconds() / 3600) + 24  # buffer
         if hours > 360:  # batas NOAA ~15 hari
             hours = 360
         date_str = target_date
-        print(f"Mengambil data METAR {ICAO} untuk tanggal {date_str}...")
+        print(f"Mengambil data METAR {icao} untuk tanggal {date_str}...")
 
-    metars = fetch_metar(hours=hours)
+    metars = fetch_metar(icao, hours=hours)
     
     # Filter sesuai tanggal yang diminta
     filtered = []
@@ -356,10 +355,10 @@ def history_mode(target_date=None):
                 filtered.append(m)
     
     if filtered:
-        filename = f"{ICAO}_{date_str.replace('-', '')}.csv"
-        station_timezone = resolve_station_timezone(ICAO)
-        station_metadata = get_station_metadata(ICAO)
-        print(color_text(f"Timezone stasiun {ICAO}: {station_timezone}", YELLOW))
+        filename = f"{icao}_{date_str.replace('-', '')}.csv"
+        station_timezone = resolve_station_timezone(icao)
+        station_metadata = get_station_metadata(icao)
+        print(color_text(f"Timezone stasiun {icao}: {station_timezone}", YELLOW))
         save_to_csv(
             filtered,
             filename,
@@ -370,9 +369,9 @@ def history_mode(target_date=None):
     else:
         print(color_text("Tidak ada data ditemukan untuk tanggal tersebut.", RED))
 
-def realtime_mode():
+def realtime_mode(icao):
     """Mode 3: Real-time monitoring (jalan terus)"""
-    print(f"Mode Real-time {ICAO} aktif. Polling setiap 5 menit...")
+    print(f"Mode Real-time {icao} aktif. Polling setiap 5 menit...")
     print("Tekan Ctrl+C untuk stop.\n")
     
     last_raw_text = None
@@ -380,7 +379,7 @@ def realtime_mode():
     
     while True:
         try:
-            metars = fetch_metar()  # latest only
+            metars = fetch_metar(icao)  # latest only
             if not metars:
                 print(color_text("Tidak ada data dari server", YELLOW))
                 time.sleep(300)
@@ -427,7 +426,8 @@ def realtime_mode():
         time.sleep(300)  # 5 menit
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="METAR WSSS NOAA Scraper")
+    parser = argparse.ArgumentParser(description="METAR NOAA Scraper")
+    parser.add_argument("--icao", required=True, help="Kode ICAO 4 karakter (contoh: WSSS)")
     subparsers = parser.add_subparsers(dest="mode", help="Pilih mode")
 
     # History hari ini
@@ -441,13 +441,14 @@ if __name__ == "__main__":
     realtime_parser = subparsers.add_parser("realtime", help="Mode monitoring real-time")
 
     args = parser.parse_args()
+    icao = args.icao.strip().upper()
 
     if args.mode == "today":
-        history_mode()
+        history_mode(icao)
     elif args.mode == "history":
-        history_mode(args.date)
+        history_mode(icao, args.date)
     elif args.mode == "realtime":
-        realtime_mode()
+        realtime_mode(icao)
     else:
         parser.print_help()
 
