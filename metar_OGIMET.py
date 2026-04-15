@@ -16,8 +16,9 @@ COLOR_WARNING = "\033[93m"
 COLOR_INFO = "\033[97m"     
 
 RANGE_DELAY_SECONDS = 25
-QUOTA_RETRY_WAIT_SECONDS = 60
-MAX_QUOTA_RETRIES = 3
+RETRY_BACKOFF_SECONDS = [5, 10, 20, 40, 60]
+PERMANENT_HTTP_STATUSES = {400, 401, 403, 404}
+TRANSIENT_HTTP_STATUSES = {408, 429, 500, 501, 502, 503, 504}
 
 
 def _init_terminal_colors():
@@ -46,6 +47,18 @@ def _log(message: str, level: str = "info"):
     }
     color = color_map.get(level, COLOR_INFO)
     print(f"{color}{message}{COLOR_RESET}")
+
+
+def _wait_and_retry(retry_count: int, reason: str) -> bool:
+    if retry_count >= len(RETRY_BACKOFF_SECONDS):
+        return False
+    delay_seconds = RETRY_BACKOFF_SECONDS[retry_count]
+    _log(
+        f"{reason} Retry {retry_count + 1}/{len(RETRY_BACKOFF_SECONDS)} dalam {delay_seconds} detik.",
+        "warning",
+    )
+    sleep(delay_seconds)
+    return True
 
 # ================== METADATA STASIUN ==================
 # Tambahkan stasiun lain di sini kalau perlu
@@ -223,26 +236,73 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
     url = f"https://www.ogimet.com/cgi-bin/getmetar?icao={icao}&begin={begin}&end={end}&header=yes"
     _log(f"Mengambil {icao} tanggal {target_date.strftime('%Y-%m-%d')}...", "info")
 
-    quota_retry_count = 0
+    retry_count = 0
     while True:
         try:
             r = requests.get(url, timeout=30)
-            if r.status_code == 501:
-                quota_retry_count += 1
-                if quota_retry_count <= MAX_QUOTA_RETRIES:
-                    _log(
-                        f"Kena 501 quota limit. Tunggu {QUOTA_RETRY_WAIT_SECONDS} detik lalu retry {quota_retry_count}/{MAX_QUOTA_RETRIES}.",
-                        "warning",
-                    )
-                    sleep(QUOTA_RETRY_WAIT_SECONDS)
-                    continue
-                _log(f"Gagal request: 501 quota limit setelah {MAX_QUOTA_RETRIES} retry.", "error")
+            status_code = r.status_code
+            if status_code in PERMANENT_HTTP_STATUSES:
+                _log(f"Gagal request permanen HTTP {status_code}. Tidak retry.", "error")
+                _log(
+                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    "warning",
+                )
                 return
 
-            r.raise_for_status()
+            if status_code in TRANSIENT_HTTP_STATUSES:
+                should_retry = _wait_and_retry(retry_count, f"HTTP {status_code} terdeteksi.")
+                if should_retry:
+                    retry_count += 1
+                    continue
+                _log(
+                    f"Gagal request: HTTP {status_code} setelah {len(RETRY_BACKOFF_SECONDS)} retry.",
+                    "error",
+                )
+                _log(
+                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    "warning",
+                )
+                return
+
+            if status_code >= 400:
+                _log(f"Gagal request HTTP {status_code}. Tidak retry.", "error")
+                _log(
+                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    "warning",
+                )
+                return
+
             break
-        except requests.RequestException as e:
+        except (requests.Timeout, requests.ConnectionError) as e:
+            should_retry = _wait_and_retry(retry_count, f"Gangguan koneksi/timeout: {e}.")
+            if should_retry:
+                retry_count += 1
+                continue
             _log(f"Gagal request: {e}", "error")
+            _log(
+                f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                "warning",
+            )
+            return
+        except requests.RequestException as e:
+            status_code = e.response.status_code if e.response is not None else None
+            if status_code in PERMANENT_HTTP_STATUSES:
+                _log(f"Gagal request permanen HTTP {status_code}. Tidak retry.", "error")
+                _log(
+                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    "warning",
+                )
+                return
+
+            should_retry = _wait_and_retry(retry_count, f"Request error: {e}.")
+            if should_retry:
+                retry_count += 1
+                continue
+            _log(f"Gagal request: {e}", "error")
+            _log(
+                f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                "warning",
+            )
             return
 
     lines = r.text.strip().split("\n")
