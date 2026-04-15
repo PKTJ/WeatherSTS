@@ -1,9 +1,11 @@
 # METAR Script
 
-Kumpulan script Python untuk mengambil data METAR dari dua sumber:
+Kumpulan script Python untuk mengambil data METAR dari beberapa sumber:
 
 - NOAA (AviationWeather) untuk history dan monitoring real-time.
 - CheckWX untuk monitoring real-time decoded.
+- Weather Underground (PWS) untuk history dan polling data stasiun personal.
+- OGIMET untuk history METAR berbasis rentang tanggal dan parsing lanjutan.
 
 ## Penjelasan Penting
 
@@ -17,17 +19,21 @@ python metar_NOAA.py ...
 
 - `metar_NOAA.py`: ambil history METAR dan monitoring real-time berbasis NOAA.
 - `metar_WXaggregator.py`: monitoring METAR real-time berbasis CheckWX (decoded).
+- `metar_OGIMET.py`: ambil history METAR dari OGIMET (single date atau date range).
+- `Weather Undergound/wunderground_pws_scraper.py`: history dan polling PWS Weather Underground.
+- `ogimet_data/`: folder default output CSV dari script OGIMET.
+- `Asset/Animation.gif`: panduan visual ambil API key Weather Underground.
 - `README.md`: dokumentasi penggunaan.
 
 ## Persyaratan
 
 - Python 3.9+
-- Paket Python `requests`
+- Paket Python: `requests`, `pandas`, `metar`, `pytz`
 
 Install dependency:
 
 ```bash
-pip install requests
+pip install requests pandas metar pytz
 ```
 
 ## Konfigurasi Awal
@@ -46,7 +52,14 @@ Sebelum menjalankan script, ubah konfigurasi berikut di file terkait:
 - `API_KEY = "MASUKAN_API_KEY_DISINI"`
 - `UNITS = "m"`
 
+4. `metar_OGIMET.py`
+- Jalankan dengan parameter `--icao` dan salah satu mode tanggal:
+	- single day: `--date YYYY-MM-DD`
+	- range day: `--start YYYY-MM-DD --end YYYY-MM-DD`
+
 ## Cara Menjalankan Script
+
+Jalankan semua command dari folder root project.
 
 ### 1. Script NOAA
 
@@ -108,10 +121,32 @@ python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20
 python "Weather Undergound/wunderground_pws_scraper.py" --mode poll --interval 60
 ```
 
+### 4. Script OGIMET
+
+File ini dipakai untuk mengambil history METAR dari OGIMET dan menyimpan ke CSV.
+
+#### Single date
+
+```bash
+python metar_OGIMET.py --icao WSSS --date 2026-04-14
+```
+
+#### Date range
+
+```bash
+python metar_OGIMET.py --icao WSSS --start 2026-04-10 --end 2026-04-14
+```
+
+#### Custom folder output
+
+```bash
+python metar_OGIMET.py --icao WSSS --date 2026-04-14 --output ogimet_data
+```
+
 ### Cara Mendapatkan API Key Weather Underground
 
 1. Buka website Weather Underground.
-2. Pilih PWS yang ingin diambil datanya dengan mengisi `STASIUN_ID` sama dengan title PWS yang anda cari.
+2. Pilih PWS yang ingin diambil datanya.
 3. Buka Developer Tools di browser.
 4. Masuk ke tab `Network`.
 5. Lakukan request dari halaman PWS tersebut.
@@ -135,8 +170,10 @@ python metar_NOAA.py today
 python metar_NOAA.py history --date 2026-03-31
 python metar_NOAA.py realtime
 python metar_WXaggregator.py
-python wunderground_pws_scraper.py --mode history --date 20260101
-python wunderground_pws_scraper.py --mode poll --interval 60
+python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20260101
+python "Weather Undergound/wunderground_pws_scraper.py" --mode poll --interval 60
+python metar_OGIMET.py --icao WSSS --date 2026-04-14
+python metar_OGIMET.py --icao WSSS --start 2026-04-10 --end 2026-04-14
 ```
 
 ## Contoh Kolom Data yang Ditampilkan
@@ -230,4 +267,5 @@ Sebagian kolom bisa kosong karena tidak selalu dilaporkan pada setiap METAR, ter
 
 - NOAA cocok untuk kebutuhan history dan bisa dipakai realtime.
 - CheckWX pada project ini dipakai untuk realtime decoded.
+- OGIMET cocok untuk history batch/range dengan output CSV harian.
 - Untuk ganti bandara, ubah nilai `ICAO` di masing-masing script.

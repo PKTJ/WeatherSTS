@@ -1,3 +1,5 @@
 # Ignore environment files
 .venv/
+__pycache__/
+ogimet_data/
 test/
