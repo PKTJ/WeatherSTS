@@ -138,6 +138,24 @@ File ini berada di folder `Weather Undergound` dan dipakai untuk data PWS Weathe
 python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20260101
 ```
 
+#### Jalankan history batch (date range)
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31
+```
+
+#### Jalankan history batch dengan throttle custom
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 20250101 --end 20251231 --request-delay 2.2 --request-jitter 0.4
+```
+
+#### Jalankan history batch dengan algortima pencarian data yang tersedia
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31 --auto-start
+```
+
 #### Jalankan polling realtime
 
 ```bash
@@ -181,6 +199,12 @@ Catatan penting:
 - Satu API key bisa digunakan untuk request lebih dari satu PWS selama aksesnya valid.
 - Jika ingin pindah PWS, cukup ganti `STATION_ID` di file script.
 - Format tanggal untuk mode history adalah `YYYYMMDD`, misalnya `20260101`.
+- Untuk mode `history_batch`, format tanggal bisa `YYYYMMDD` atau `YYYY-MM-DD`.
+- Rekomendasi aman `--request-delay 2.0` sampai `2.5` detik (default `2.2`) agar tetap di bawah sekitar 30 request/menit.
+- Script sudah punya auto retry + backoff untuk HTTP `429/5xx` dan error koneksi.
+- Jika tidak isi `--output-dir`, script otomatis membuat folder output baru di dalam folder `output/`.
+- Jika nama folder otomatis sudah ada, script membuat nama baru dengan suffix angka (`_2`, `_3`, dst.) agar file lama aman.
+- Gunakan `--auto-start` untuk mode `history_batch` jika ingin script otomatis geser tanggal mulai ke hari pertama yang benar-benar punya data.
 
 Panduan visual:
 
@@ -194,6 +218,8 @@ python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
 python metar_NOAA.py --icao <ICAO_CODE> realtime
 python metar_WXaggregator.py
 python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20260101
+python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31 --request-delay 2.2 --request-jitter 0.4
+python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31 --auto-start
 python "Weather Undergound/wunderground_pws_scraper.py" --mode poll --interval 60
 python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
 python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
