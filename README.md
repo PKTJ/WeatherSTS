@@ -64,16 +64,16 @@ ICAO adalah kode unik bandara yang terdiri dari 4 huruf.
 - `metar_NOAA.py`: isi lewat argument command `--icao <ICAO_CODE>`.
 - `metar_OGIMET.py`: isi lewat argument command `--icao <ICAO_CODE>`.
 - `metar_WXaggregator.py`: isi langsung di variabel `ICAO = "..."` pada file script.
-- `Weather Undergound/wunderground_pws_scraper.py`: tidak memakai ICAO, tetapi memakai `STATION_ID`.
+- `Weather Undergound/wunderground_pws_scraper.py`: tidak memakai ICAO, tetapi memakai station ID lewat argument `--station`.
 
 1. `metar_WXaggregator.py`
 - `API_KEY = "MASUKAN_API_KEY"`
 - `ICAO = "MASUKAN_KODE_ICAO_DISINI"`
 
 2. `Weather Undergound/wunderground_pws_scraper.py`
-- `STATION_ID = "MASUKAN_DISINI"`
 - `API_KEY = "MASUKAN_API_KEY_DISINI"`
 - `UNITS = "m"`
+- `STATION_ID` tidak perlu diubah di file karena sekarang wajib diisi dari CLI dengan `--station`.
 
 3. `metar_OGIMET.py`
 - Jalankan dengan parameter `--icao` dan salah satu mode tanggal:
@@ -135,31 +135,37 @@ File ini berada di folder `Weather Undergound` dan dipakai untuk data PWS Weathe
 #### Jalankan history
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20260101
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --date 2026-01-01
 ```
 
-#### Jalankan history batch (date range)
+#### Jalankan history hari ini
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31
-```
-
-#### Jalankan history batch dengan throttle custom
-
-```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 20250101 --end 20251231 --request-delay 2.2 --request-jitter 0.4
-```
-
-#### Jalankan history batch dengan algortima pencarian data yang tersedia
-
-```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31 --auto-start
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today
 ```
 
 #### Jalankan polling realtime
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --mode poll --interval 60
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today --interval 60
+```
+
+#### Jalankan history batch (date range)
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14
+```
+
+#### Jalankan history batch dengan throttle custom
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --request-delay 2.2 --request-jitter 0.4
+```
+
+#### Jalankan history batch dengan algoritma pencarian data yang tersedia
+
+```bash
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --auto-start
 ```
 
 ### 4. Script OGIMET
@@ -197,14 +203,13 @@ python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14 --output ogimet_data
 Catatan penting:
 
 - Satu API key bisa digunakan untuk request lebih dari satu PWS selama aksesnya valid.
-- Jika ingin pindah PWS, cukup ganti `STATION_ID` di file script.
-- Format tanggal untuk mode history adalah `YYYYMMDD`, misalnya `20260101`.
-- Untuk mode `history_batch`, format tanggal bisa `YYYYMMDD` atau `YYYY-MM-DD`.
+- Jika ingin pindah PWS, cukup ganti nilai `--station` pada command.
+- Format tanggal untuk `--date`, `--start`, dan `--end` bisa `YYYYMMDD` atau `YYYY-MM-DD`.
 - Rekomendasi aman `--request-delay 2.0` sampai `2.5` detik (default `2.2`) agar tetap di bawah sekitar 30 request/menit.
 - Script sudah punya auto retry + backoff untuk HTTP `429/5xx` dan error koneksi.
-- Jika tidak isi `--output-dir`, script otomatis membuat folder output baru di dalam folder `output/`.
-- Jika nama folder otomatis sudah ada, script membuat nama baru dengan suffix angka (`_2`, `_3`, dst.) agar file lama aman.
-- Gunakan `--auto-start` untuk mode `history_batch` jika ingin script otomatis geser tanggal mulai ke hari pertama yang benar-benar punya data.
+- Jika tidak isi `--output-dir`, script otomatis membuat atau memakai ulang folder output di dalam folder `output/`.
+- Jika folder output otomatis/manual sudah ada, file dengan nama yang sama akan langsung ditimpa (overwrite).
+- Gunakan `--auto-start` saat memakai `--start/--end` jika ingin script otomatis geser tanggal mulai ke hari pertama yang benar-benar punya data.
 
 Panduan visual:
 
@@ -217,10 +222,11 @@ python metar_NOAA.py --icao <ICAO_CODE> today
 python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
 python metar_NOAA.py --icao <ICAO_CODE> realtime
 python metar_WXaggregator.py
-python "Weather Undergound/wunderground_pws_scraper.py" --mode history --date 20260101
-python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31 --request-delay 2.2 --request-jitter 0.4
-python "Weather Undergound/wunderground_pws_scraper.py" --mode history_batch --date 2025-01-01 --end 2025-12-31 --auto-start
-python "Weather Undergound/wunderground_pws_scraper.py" --mode poll --interval 60
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --date 2026-01-01
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today --interval 60
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --request-delay 2.2 --request-jitter 0.4
+python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --auto-start
 python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
 python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 ```
