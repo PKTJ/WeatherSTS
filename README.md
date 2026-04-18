@@ -222,11 +222,11 @@ python metar_NOAA.py --icao <ICAO_CODE> today
 python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
 python metar_NOAA.py --icao <ICAO_CODE> realtime
 python metar_WXaggregator.py
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --date 2026-01-01
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today --interval 60
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --request-delay 2.2 --request-jitter 0.4
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --auto-start
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --date 2026-01-01
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> today
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> today --interval 60
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --start 2026-01-01 --end 2026-04-14 --request-delay 2.2 --request-jitter 0.4
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --start 2026-01-01 --end 2026-04-14 --auto-start
 python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
 python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 ```
