@@ -135,37 +135,37 @@ This file is located in the `Weather Undergound` folder and is used for Weather 
 #### Run history
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --date 2026-01-01
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE>  --date 2026-01-01
 ```
 
 #### Run today's history
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE>  today
 ```
 
 #### Run real-time polling
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today --interval 60
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE>  today --interval 60
 ```
 
 #### Run batch history (date range)
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE>  --start 2026-01-01 --end 2026-04-14
 ```
 
 #### Run batch history with custom throttle
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --request-delay 2.2 --request-jitter 0.4
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --start 2026-01-01 --end 2026-04-14 --request-delay 2.2 --request-jitter 0.4
 ```
 
 #### Run batch history with the available-data search algorithm
 
 ```bash
-python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --auto-start
+python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --start 2026-01-01 --end 2026-04-14 --auto-start
 ```
 
 ### 4. OGIMET Script
