@@ -1,34 +1,34 @@
-# METAR Script
+# Weather Data Scraping
 
-Kumpulan script Python untuk mengambil data METAR dari beberapa sumber:
+Python scripts for retrieving METAR data from several sources:
 
-- NOAA (AviationWeather) untuk history dan monitoring real-time.
-- CheckWX untuk monitoring real-time decoded.
-- Weather Underground (PWS) untuk history dan polling data stasiun personal.
-- OGIMET untuk history METAR berbasis rentang tanggal dan parsing lanjutan.
+- NOAA (AviationWeather) for history and real-time monitoring.
+- CheckWX for decoded real-time monitoring.
+- Weather Underground (PWS) for history and polling personal station data.
+- OGIMET for METAR history based on date ranges and extended parsing.
 
-## Struktur Workspace
+## Workspace Structure
 
-- `metar_NOAA.py`: ambil history METAR dan monitoring real-time berbasis NOAA.
-- `metar_WXaggregator.py`: monitoring METAR real-time berbasis CheckWX (decoded).
-- `metar_OGIMET.py`: ambil history METAR dari OGIMET (single date atau date range).
-- `Weather Undergound/wunderground_pws_scraper.py`: history dan polling PWS Weather Underground.
-- `ogimet_data/`: folder default output CSV dari script OGIMET.
-- `Asset/Animation.gif`: panduan visual ambil API key Weather Underground.
-- `README.md`: dokumentasi penggunaan.
+- `metar_NOAA.py`: retrieves METAR history and real-time monitoring from NOAA.
+- `metar_WXaggregator.py`: real-time METAR monitoring based on CheckWX (decoded).
+- `metar_OGIMET.py`: retrieves METAR history from OGIMET (single date or date range).
+- `Weather Undergound/wunderground_pws_scraper.py`: history and polling for Weather Underground PWS data.
+- `ogimet_data/`: default CSV output folder for the OGIMET script.
+- `Asset/Animation.gif`: visual guide for getting the Weather Underground API key.
+- `README.md`: usage documentation.
 
-## Persyaratan
+## Requirements
 
 - Python 3.9+
-- Paket Python ada di file `requirements.txt`
+- Python packages are listed in `requirements.txt`
 
-Install dependency (disarankan):
+Install dependencies (recommended):
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Opsional (direkomendasikan): gunakan virtual environment
+Optional but recommended: use a virtual environment
 
 ```bash
 python -m venv .venv
@@ -48,23 +48,23 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Konfigurasi Awal
+## Initial Configuration
 
-Sebelum menjalankan script, ubah konfigurasi berikut di file terkait:
+Before running the scripts, update the following configuration in the related files:
 
-### Apa itu ICAO?
+### What is ICAO?
 
-ICAO adalah kode unik bandara yang terdiri dari 4 huruf.
+ICAO is the unique 4-letter airport code.
 
-- Contoh: `WIII`, `WSSS`, `RJTT`, `KJFK`.
-- Di README ini, contoh perintah memakai placeholder `<ICAO_CODE>` supaya bisa diganti sesuai bandara tujuan Anda.
+- Examples: `WIII`, `WSSS`, `RJTT`, `KJFK`.
+- In this README, the commands use the placeholder `<ICAO_CODE>` so you can replace it with your target airport.
 
-### ICAO Diisi di Mana?
+### Where Should ICAO Be Filled In?
 
-- `metar_NOAA.py`: isi lewat argument command `--icao <ICAO_CODE>`.
-- `metar_OGIMET.py`: isi lewat argument command `--icao <ICAO_CODE>`.
-- `metar_WXaggregator.py`: isi langsung di variabel `ICAO = "..."` pada file script.
-- `Weather Undergound/wunderground_pws_scraper.py`: tidak memakai ICAO, tetapi memakai station ID lewat argument `--station`.
+- `metar_NOAA.py`: provide it through the command argument `--icao <ICAO_CODE>`.
+- `metar_OGIMET.py`: provide it through the command argument `--icao <ICAO_CODE>`.
+- `metar_WXaggregator.py`: set it directly in the script variable `ICAO = "..."`.
+- `Weather Undergound/wunderground_pws_scraper.py`: it does not use ICAO, but uses a station ID through the `--station` argument.
 
 1. `metar_WXaggregator.py`
 - `API_KEY = "MASUKAN_API_KEY"`
@@ -73,104 +73,104 @@ ICAO adalah kode unik bandara yang terdiri dari 4 huruf.
 2. `Weather Undergound/wunderground_pws_scraper.py`
 - `API_KEY = "MASUKAN_API_KEY_DISINI"`
 - `UNITS = "m"`
-- `STATION_ID` tidak perlu diubah di file karena sekarang wajib diisi dari CLI dengan `--station`.
+- `STATION_ID` does not need to be changed in the file because it is now required from the CLI with `--station`.
 
 3. `metar_OGIMET.py`
-- Jalankan dengan parameter `--icao` dan salah satu mode tanggal:
+- Run it with the `--icao` parameter and one of the date modes:
 	- single day: `--date YYYY-MM-DD`
-	- range day: `--start YYYY-MM-DD --end YYYY-MM-DD`
+	- date range: `--start YYYY-MM-DD --end YYYY-MM-DD`
 
-## Cara Menjalankan Script
+## How to Run the Scripts
 
-Jalankan semua command dari folder root project.
+Run all commands from the project root folder.
 
-### 1. Script NOAA
+### 1. NOAA Script
 
-File ini dipakai untuk history METAR dan realtime NOAA.
+This file is used for NOAA METAR history and real-time monitoring.
 
-#### Lihat bantuan
+#### Show help
 
 ```bash
 python metar_NOAA.py -h
 ```
 
-#### Ambil history hari ini
+#### Get today's history
 
 ```bash
 python metar_NOAA.py --icao <ICAO_CODE> today
 ```
 
-#### Ambil history tanggal tertentu
+#### Get history for a specific date
 
 ```bash
 python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
 ```
 
-#### Monitoring realtime NOAA
+#### NOAA real-time monitoring
 
 ```bash
 python metar_NOAA.py --icao <ICAO_CODE> realtime
 ```
 
-#### Bantuan khusus mode history
+#### History mode help
 
 ```bash
 python metar_NOAA.py --icao <ICAO_CODE> history -h
 ```
 
-### 2. Script CheckWX
+### 2. CheckWX Script
 
-File ini dipakai untuk monitoring realtime decoded dari CheckWX.
+This file is used for decoded real-time monitoring from CheckWX.
 
-#### Jalankan monitoring realtime
+#### Run real-time monitoring
 
 ```bash
 python metar_WXaggregator.py
 ```
 
-### 3. Script Weather Underground
+### 3. Weather Underground Script
 
-File ini berada di folder `Weather Undergound` dan dipakai untuk data PWS Weather Underground.
+This file is located in the `Weather Undergound` folder and is used for Weather Underground PWS data.
 
-#### Jalankan history
+#### Run history
 
 ```bash
 python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --date 2026-01-01
 ```
 
-#### Jalankan history hari ini
+#### Run today's history
 
 ```bash
 python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today
 ```
 
-#### Jalankan polling realtime
+#### Run real-time polling
 
 ```bash
 python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 today --interval 60
 ```
 
-#### Jalankan history batch (date range)
+#### Run batch history (date range)
 
 ```bash
 python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14
 ```
 
-#### Jalankan history batch dengan throttle custom
+#### Run batch history with custom throttle
 
 ```bash
 python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --request-delay 2.2 --request-jitter 0.4
 ```
 
-#### Jalankan history batch dengan algoritma pencarian data yang tersedia
+#### Run batch history with the available-data search algorithm
 
 ```bash
 python "Weather Undergound/wunderground_pws_scraper.py" --station ISINGA249 --start 2026-01-01 --end 2026-04-14 --auto-start
 ```
 
-### 4. Script OGIMET
+### 4. OGIMET Script
 
-File ini dipakai untuk mengambil history METAR dari OGIMET dan menyimpan ke CSV.
+This file is used to retrieve METAR history from OGIMET and save it to CSV.
 
 #### Single date
 
@@ -184,38 +184,38 @@ python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
 python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 ```
 
-#### Custom folder output
+#### Custom output folder
 
 ```bash
 python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14 --output ogimet_data
 ```
 
-### Cara Mendapatkan API Key Weather Underground
+### How to Get the Weather Underground API Key
 
-1. Buka website Weather Underground.
-2. Pilih PWS yang ingin diambil datanya.
-3. Buka Developer Tools di browser.
-4. Masuk ke tab `Network`.
-5. Lakukan request dari halaman PWS tersebut.
-6. Cari request yang memanggil endpoint Weather.com / Weather Underground
-7. Di request URL atau headers, ambil nilai `current?apiKey=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` beruba 30 kombinasi unik angka dan huruf.
+1. Open the Weather Underground website.
+2. Choose the PWS you want to retrieve data from.
+3. Open Developer Tools in the browser.
+4. Go to the `Network` tab.
+5. Trigger a request from that PWS page.
+6. Find the request that calls the Weather.com / Weather Underground endpoint.
+7. In the request URL or headers, take the value `current?apiKey=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`, which is a 30-character combination of letters and numbers.
 
-Catatan penting:
+Important notes:
 
-- Satu API key bisa digunakan untuk request lebih dari satu PWS selama aksesnya valid.
-- Jika ingin pindah PWS, cukup ganti nilai `--station` pada command.
-- Format tanggal untuk `--date`, `--start`, dan `--end` bisa `YYYYMMDD` atau `YYYY-MM-DD`.
-- Rekomendasi aman `--request-delay 2.0` sampai `2.5` detik (default `2.2`) agar tetap di bawah sekitar 30 request/menit.
-- Script sudah punya auto retry + backoff untuk HTTP `429/5xx` dan error koneksi.
-- Jika tidak isi `--output-dir`, script otomatis membuat atau memakai ulang folder output di dalam folder `output/`.
-- Jika folder output otomatis/manual sudah ada, file dengan nama yang sama akan langsung ditimpa (overwrite).
-- Gunakan `--auto-start` saat memakai `--start/--end` jika ingin script otomatis geser tanggal mulai ke hari pertama yang benar-benar punya data.
+- One API key can be used for requests to more than one PWS as long as the access is valid.
+- If you want to switch PWS, just change the `--station` value in the command.
+- Date formats for `--date`, `--start`, and `--end` can be `YYYYMMDD` or `YYYY-MM-DD`.
+- Safe recommendation for `--request-delay` is `2.0` to `2.5` seconds (default `2.2`) so it stays below about 30 requests/minute.
+- The script already has auto retry + backoff for HTTP `429/5xx` and connection errors.
+- If `--output-dir` is not provided, the script automatically creates or reuses the output folder inside `output/`.
+- If the automatic/manual output folder already exists, files with the same name will be overwritten.
+- Use `--auto-start` when using `--start/--end` if you want the script to automatically move the start date to the first day that actually has data.
 
-Panduan visual:
+Visual guide:
 
-![Panduan Weather Underground](Asset/Animation.gif)
+![Weather Underground Guide](Asset/Animation.gif)
 
-## Ringkasan Perintah
+## Command Summary
 
 ```bash
 python metar_NOAA.py --icao <ICAO_CODE> today
@@ -231,7 +231,7 @@ python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
 python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 ```
 
-## Contoh Kolom Data yang Ditampilkan
+## Example Columns in the Output
 
 - `observation_time`
 - `local_time`
@@ -255,71 +255,71 @@ python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 - `rmk_indicators`
 - `latitude`, `longitude`, `elevation_m`
 
-## Cara Membaca Output CSV NOAA
+## How to Read NOAA CSV Output
 
-Setiap baris CSV mewakili satu laporan METAR/SPECI pada waktu observasi tertentu.
+Each CSV row represents one METAR/SPECI report at a specific observation time.
 
-### 1) Waktu dan identitas laporan
+### 1) Time and report identity
 
-- `observation_time`: waktu observasi dalam UTC (format ISO), contoh `2026-04-14T03:00:00+00:00`.
-- `local_time`: waktu lokal stasiun (hasil konversi timezone), contoh `2026-04-14 10:00:00`.
-- `report_type`: tipe laporan, `METAR` (rutin) atau `SPECI` (laporan khusus saat ada perubahan signifikan).
-- `raw_text`: teks METAR mentah asli; ini referensi utama jika ingin validasi parsing.
+- `observation_time`: observation time in UTC (ISO format), example `2026-04-14T03:00:00+00:00`.
+- `local_time`: local station time (timezone-converted), example `2026-04-14 10:00:00`.
+- `report_type`: report type, `METAR` (routine) or `SPECI` (special report when significant changes occur).
+- `raw_text`: the original raw METAR text; this is the main reference if you want to validate parsing.
 
-### 2) Suhu, kelembapan, tekanan
+### 2) Temperature, humidity, pressure
 
-- `temp_c`: suhu udara (C).
-- `dewpoint_c`: titik embun (C). Selisih kecil antara suhu dan dew point biasanya menandakan kelembapan tinggi.
-- `pressure_mb`: tekanan udara (hPa/mb).
+- `temp_c`: air temperature (C).
+- `dewpoint_c`: dew point (C). A small difference between temperature and dew point usually indicates high humidity.
+- `pressure_mb`: air pressure (hPa/mb).
 
-### 3) Angin
+### 3) Wind
 
-- `wind_dir`: arah angin utama (derajat dari utara sejati) atau `VRB` jika variable.
-- `wind_speed_kt`: kecepatan angin rata-rata (knot).
-- `wind_gust_kt`: hembusan maksimum/gust (knot).
-- `wind_dir_var`: variasi arah angin.
+- `wind_dir`: main wind direction (degrees from true north) or `VRB` if variable.
+- `wind_speed_kt`: average wind speed (knots).
+- `wind_gust_kt`: maximum gust speed (knots).
+- `wind_dir_var`: wind direction variation.
 
-### 4) Visibilitas, awan, cuaca kini
+### 4) Visibility, clouds, current weather
 
-- `visibility`: jarak pandang horizontal (sesuai format dari sumber NOAA).
-- `cloud_layers`: lapisan awan format ringkas METAR.
-	- `FEW016` artinya awan sedikit di sekitar 1600 ft AGL.
-	- `BKN`/`OVC` biasanya dipakai untuk evaluasi ceiling operasional.
-- `wx_string`: fenomena cuaca saat ini (present weather).
+- `visibility`: horizontal visibility (as provided by the NOAA source).
+- `cloud_layers`: compact METAR cloud layer format.
+	- `FEW016` means a few clouds around 1600 ft AGL.
+	- `BKN`/`OVC` are usually used for operational ceiling evaluation.
+- `wx_string`: current weather phenomena (present weather).
 
-### 5) Kategori penerbangan dan kualitas laporan
+### 5) Flight category and report quality
 
-- `flight_category`: klasifikasi operasional (`VFR`, `MVFR`, `IFR`, `LIFR`).
-- `auto`: status otomatis/koreksi laporan.
-	- `AUTO`: laporan otomatis.
-	- `COR`: laporan koreksi.
-	- `AUTO/COR`: keduanya terdeteksi di raw report.
+- `flight_category`: operational classification (`VFR`, `MVFR`, `IFR`, `LIFR`).
+- `auto`: automatic/correction status.
+	- `AUTO`: automatic report.
+	- `COR`: correction report.
+	- `AUTO/COR`: both detected in the raw report.
 
-### 6) Informasi lanjutan dari raw METAR
+### 6) Additional information from the raw METAR
 
-- `recent_weather`: fenomena cuaca terbaru bertanda `RE...` (contoh `RERA`, `RETS`).
-- `rvr`: Runway Visual Range jika ada (contoh `R23/1200FT`).
-- `remarks`: bagian setelah token `RMK` pada raw METAR.
-- `rmk_indicators`: indikator penting yang terdeteksi di remarks, misalnya `WSHFT`, `PK WND`, `PRESFR`, `PRESRR`.
+- `recent_weather`: recent weather phenomenon marked as `RE...` (example `RERA`, `RETS`).
+- `rvr`: Runway Visual Range if present (example `R23/1200FT`).
+- `remarks`: the part after the `RMK` token in the raw METAR.
+- `rmk_indicators`: important indicators detected in the remarks, such as `WSHFT`, `PK WND`, `PRESFR`, `PRESRR`.
 
-### 7) Metadata stasiun
+### 7) Station metadata
 
-- `latitude`, `longitude`: koordinat stasiun.
-- `elevation_m`: elevasi stasiun (meter).
+- `latitude`, `longitude`: station coordinates.
+- `elevation_m`: station elevation (meters).
 
-## Tips Interpretasi Cepat
+## Quick Interpretation Tips
 
-- Prioritas kondisi buruk: `flight_category` = `IFR/LIFR`, `visibility` rendah, `cloud_layers` dominan `BKN/OVC` rendah.
-- Potensi cuaca signifikan: `wx_string` berisi `TS`, `FG`, `SHRA`, atau simbol intensitas seperti `+`.
-- Potensi angin berbahaya: `wind_gust_kt` tinggi, `wind_dir_var` lebar (`xxxVyyy`), atau `VRB`.
-- Analisis event singkat: cek `recent_weather`, `rvr`, dan `rmk_indicators` untuk sinyal perubahan cepat.
+- Bad conditions first: `flight_category` = `IFR/LIFR`, low `visibility`, and low `cloud_layers` dominated by `BKN/OVC`.
+- Significant weather potential: `wx_string` contains `TS`, `FG`, `SHRA`, or intensity symbols such as `+`.
+- Dangerous wind potential: high `wind_gust_kt`, wide `wind_dir_var` (`xxxVyyy`), or `VRB`.
+- Short event analysis: check `recent_weather`, `rvr`, and `rmk_indicators` for signs of rapid change.
 
-## Catatan Nilai Kosong di CSV
+## Empty Values in CSV
 
-Sebagian kolom bisa kosong karena tidak selalu dilaporkan pada setiap METAR, terutama `rvr`, `recent_weather`, `remarks`, atau `wind_gust_kt`. Nilai kosong bukan error selama file tetap terbentuk dan kolom lain terbaca normal.
+Some columns may be empty because they are not always reported in every METAR, especially `rvr`, `recent_weather`, `remarks`, or `wind_gust_kt`. Empty values are not an error as long as the file is created and the other columns are read normally.
 
-## Catatan
+## Notes
 
-- NOAA cocok untuk kebutuhan history dan bisa dipakai realtime.
-- CheckWX pada project ini dipakai untuk realtime decoded.
-- OGIMET cocok untuk history batch/range dengan output CSV harian.
+- NOAA is suitable for history and can also be used in real-time.
+- CheckWX in this project is used for decoded real-time monitoring.
+- OGIMET is suitable for batch/range history with daily CSV output.
