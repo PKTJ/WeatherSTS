@@ -1,6 +1,7 @@
 import requests
 import json
 import csv
+import os
 from datetime import datetime, timedelta, timezone
 import time
 import argparse
@@ -16,6 +17,32 @@ GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
 RESET = "\033[0m"
+
+CSV_FIELDNAMES = [
+    "observation_time",
+    "local_time",
+    "raw_text",
+    "report_type",
+    "temp_c",
+    "dewpoint_c",
+    "wind_dir",
+    "wind_speed_kt",
+    "wind_gust_kt",
+    "wind_dir_var",
+    "visibility",
+    "pressure_mb",
+    "cloud_layers",
+    "wx_string",
+    "flight_category",
+    "auto",
+    "recent_weather",
+    "rvr",
+    "remarks",
+    "rmk_indicators",
+    "latitude",
+    "longitude",
+    "elevation_m",
+]
 
 
 def color_text(text, color):
@@ -254,37 +281,84 @@ def extract_rmk_indicators(remarks):
             indicators.append(token)
     return ",".join(indicators)
 
+
+def build_csv_row(metar, tzinfo, station_metadata=None):
+    station_metadata = station_metadata or {}
+    obs_dt = get_observation_datetime(metar)
+    raw_text = get_field(metar, "raw_text", "rawOb") or ""
+    remarks = extract_remarks(raw_text)
+
+    return {
+        "observation_time": obs_dt.isoformat() if obs_dt else "",
+        "local_time": obs_dt.astimezone(tzinfo).strftime("%Y-%m-%d %H:%M:%S") if obs_dt else "",
+        "raw_text": raw_text,
+        "report_type": is_speci(metar),
+        "temp_c": get_field(metar, "temp_c", "temp"),
+        "dewpoint_c": get_field(metar, "dewpoint_c", "dewp"),
+        "wind_dir": get_field(metar, "wind_dir", "wdir"),
+        "wind_speed_kt": get_field(metar, "wind_speed_kt", "wspd"),
+        "wind_gust_kt": get_field(metar, "wind_gust_kt", "wgst"),
+        "wind_dir_var": extract_wind_dir_var(metar),
+        "visibility": get_field(metar, "visibility", "visib"),
+        "pressure_mb": get_field(metar, "altim_in_mb", "pressure_mb", "altim"),
+        "cloud_layers": extract_cloud_layers(metar),
+        "wx_string": extract_wx_string(metar),
+        "flight_category": get_field(metar, "flight_category", "flightCategory"),
+        "auto": extract_auto(metar),
+        "recent_weather": extract_recent_weather(metar),
+        "rvr": extract_rvr(metar),
+        "remarks": remarks,
+        "rmk_indicators": extract_rmk_indicators(remarks),
+        "latitude": station_metadata.get("latitude"),
+        "longitude": station_metadata.get("longitude"),
+        "elevation_m": station_metadata.get("elevation_m"),
+    }
+
+
+def append_live_row(metar, filename, station_timezone="UTC", station_metadata=None):
+    station_metadata = station_metadata or {}
+    try:
+        tzinfo = ZoneInfo(station_timezone)
+    except Exception:
+        tzinfo = timezone.utc
+
+    row = build_csv_row(metar, tzinfo, station_metadata)
+    file_exists = os.path.exists(filename)
+    should_write_header = (not file_exists) or os.path.getsize(filename) == 0
+
+    with open(filename, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
+        if should_write_header:
+            writer.writeheader()
+        writer.writerow(row)
+
+
+def read_last_live_record_key(filename):
+    """Ambil record terakhir dari file live agar restart tidak langsung double record."""
+    if not os.path.exists(filename):
+        return None
+
+    try:
+        last_row = None
+        with open(filename, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                last_row = row
+
+        if not last_row:
+            return None
+
+        obs_time = last_row.get("observation_time") or "-"
+        raw_text = last_row.get("raw_text") or ""
+        return obs_time, raw_text
+    except Exception:
+        return None
+
 def save_to_csv(metars, filename, station_timezone="UTC", station_metadata=None):
     """Simpan history ke CSV"""
     if not metars:
         print(color_text("Tidak ada data untuk disimpan.", YELLOW))
         return
-    
-    fieldnames = [
-        "observation_time",
-        "local_time",
-        "raw_text",
-        "report_type",
-        "temp_c",
-        "dewpoint_c",
-        "wind_dir",
-        "wind_speed_kt",
-        "wind_gust_kt",
-        "wind_dir_var",
-        "visibility",
-        "pressure_mb",
-        "cloud_layers",
-        "wx_string",
-        "flight_category",
-        "auto",
-        "recent_weather",
-        "rvr",
-        "remarks",
-        "rmk_indicators",
-        "latitude",
-        "longitude",
-        "elevation_m",
-    ]
 
     station_metadata = station_metadata or {}
 
@@ -294,37 +368,10 @@ def save_to_csv(metars, filename, station_timezone="UTC", station_metadata=None)
         tzinfo = timezone.utc
     
     with open(filename, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
         writer.writeheader()
         for m in metars:
-            obs_dt = get_observation_datetime(m)
-            raw_text = get_field(m, "raw_text", "rawOb") or ""
-            remarks = extract_remarks(raw_text)
-            writer.writerow({
-                "observation_time": obs_dt.isoformat() if obs_dt else "",
-                "local_time": obs_dt.astimezone(tzinfo).strftime("%Y-%m-%d %H:%M:%S") if obs_dt else "",
-                "raw_text": raw_text,
-                "report_type": is_speci(m),
-                "temp_c": get_field(m, "temp_c", "temp"),
-                "dewpoint_c": get_field(m, "dewpoint_c", "dewp"),
-                "wind_dir": get_field(m, "wind_dir", "wdir"),
-                "wind_speed_kt": get_field(m, "wind_speed_kt", "wspd"),
-                "wind_gust_kt": get_field(m, "wind_gust_kt", "wgst"),
-                "wind_dir_var": extract_wind_dir_var(m),
-                "visibility": get_field(m, "visibility", "visib"),
-                "pressure_mb": get_field(m, "altim_in_mb", "pressure_mb", "altim"),
-                "cloud_layers": extract_cloud_layers(m),
-                "wx_string": extract_wx_string(m),
-                "flight_category": get_field(m, "flight_category", "flightCategory"),
-                "auto": extract_auto(m),
-                "recent_weather": extract_recent_weather(m),
-                "rvr": extract_rvr(m),
-                "remarks": remarks,
-                "rmk_indicators": extract_rmk_indicators(remarks),
-                "latitude": station_metadata.get("latitude"),
-                "longitude": station_metadata.get("longitude"),
-                "elevation_m": station_metadata.get("elevation_m"),
-            })
+            writer.writerow(build_csv_row(m, tzinfo, station_metadata))
     print(color_text(f"Data berhasil disimpan ke: {filename}", GREEN))
 
 def history_mode(icao, target_date=None):
@@ -370,12 +417,18 @@ def history_mode(icao, target_date=None):
         print(color_text("Tidak ada data ditemukan untuk tanggal tersebut.", RED))
 
 def realtime_mode(icao):
-    """Mode 3: Real-time monitoring (jalan terus)"""
+    """Mode 3: Real-time monitoring (jalan terus + rekam live ke CSV)."""
     print(f"Mode Real-time {icao} aktif. Polling setiap 5 menit...")
     print("Tekan Ctrl+C untuk stop.\n")
-    
-    last_raw_text = None
-    last_obs_time = None
+
+    station_timezone = resolve_station_timezone(icao)
+    station_metadata = get_station_metadata(icao)
+    live_filename = f"{icao}_live.csv"
+    print(color_text(f"Timezone stasiun {icao}: {station_timezone}", YELLOW))
+    print(color_text(f"File live: {live_filename}", YELLOW))
+
+    # Pakai record terakhir yang sudah ada agar restart tidak menulis ulang data sama.
+    last_record_key = read_last_live_record_key(live_filename)
     
     while True:
         try:
@@ -389,6 +442,7 @@ def realtime_mode(icao):
             raw_text = get_field(latest, "raw_text", "rawOb") or ""
             obs_dt = get_observation_datetime(latest)
             obs_time = obs_dt.isoformat() if obs_dt else "-"
+            record_key = (obs_time, raw_text)
             report_type = is_speci(latest)
             temp_c = get_field(latest, "temp_c", "temp")
             dewpoint_c = get_field(latest, "dewpoint_c", "dewp")
@@ -397,8 +451,8 @@ def realtime_mode(icao):
             visibility = get_field(latest, "visibility", "visib")
             pressure_mb = get_field(latest, "altim_in_mb", "pressure_mb", "altim")
 
-            # Hanya tampil kalau ada perubahan (raw_text atau waktu observasi berbeda)
-            if raw_text != last_raw_text or obs_time != last_obs_time:
+            # Tampilkan dan simpan hanya jika data observasi berubah.
+            if record_key != last_record_key:
                 print(color_text("=" * 80, GREEN))
                 print(color_text(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}", GREEN))
                 print(f"observation_time : {obs_time}")
@@ -411,9 +465,16 @@ def realtime_mode(icao):
                 print(f"visibility       : {visibility if visibility is not None else '-'}")
                 print(f"pressure_mb      : {pressure_mb if pressure_mb is not None else '-'}")
                 print(color_text("=" * 80, GREEN))
-                
-                last_raw_text = raw_text
-                last_obs_time = obs_time
+
+                append_live_row(
+                    latest,
+                    live_filename,
+                    station_timezone=station_timezone,
+                    station_metadata=station_metadata,
+                )
+                print(color_text(f"Record live tersimpan ke {live_filename}", GREEN))
+
+                last_record_key = record_key
             else:
                 print(color_text(f"[{datetime.now().strftime('%H:%M:%S')}] Tidak ada perubahan data...", YELLOW))
 

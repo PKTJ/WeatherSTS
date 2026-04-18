@@ -9,8 +9,8 @@ import re
 from datetime import datetime, timedelta
 
 # ================== KONFIGURASI ==================
-API_KEY = "MASUKAN_API_KEY_DISINI"      # Key dari Network tab
-UNITS = "m"                             # m = metric
+API_KEY = "MASUKAN_API_KEY"    # Key dari Network tab
+UNITS = "m"                    # m = metric
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
