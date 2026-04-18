@@ -63,22 +63,8 @@ ICAO is the unique 4-letter airport code.
 
 - `metar_NOAA.py`: provide it through the command argument `--icao <ICAO_CODE>`.
 - `metar_OGIMET.py`: provide it through the command argument `--icao <ICAO_CODE>`.
-- `metar_WXaggregator.py`: set it directly in the script variable `ICAO = "..."`.
+- `metar_WXaggregator.py`: provide it through the command argument `--icao <ICAO_CODE>`.
 - `Weather Undergound/wunderground_pws_scraper.py`: it does not use ICAO, but uses a station ID through the `--station` argument.
-
-1. `metar_WXaggregator.py`
-- `API_KEY = "MASUKAN_API_KEY"`
-- `ICAO = "MASUKAN_KODE_ICAO_DISINI"`
-
-2. `Weather Undergound/wunderground_pws_scraper.py`
-- `API_KEY = "MASUKAN_API_KEY_DISINI"`
-- `UNITS = "m"`
-- `STATION_ID` does not need to be changed in the file because it is now required from the CLI with `--station`.
-
-3. `metar_OGIMET.py`
-- Run it with the `--icao` parameter and one of the date modes:
-	- single day: `--date YYYY-MM-DD`
-	- date range: `--start YYYY-MM-DD --end YYYY-MM-DD`
 
 ## How to Run the Scripts
 
@@ -125,7 +111,7 @@ This file is used for decoded real-time monitoring from CheckWX.
 #### Run real-time monitoring
 
 ```bash
-python metar_WXaggregator.py
+python metar_WXaggregator.py --icao <ICAO_CODE>
 ```
 
 ### 3. Weather Underground Script
@@ -221,7 +207,7 @@ Visual guide:
 python metar_NOAA.py --icao <ICAO_CODE> today
 python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
 python metar_NOAA.py --icao <ICAO_CODE> realtime
-python metar_WXaggregator.py
+py metar_WXaggregator.py --icao <ICAO_CODE>
 python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --date 2026-01-01
 python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> today
 python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> today --interval 60
