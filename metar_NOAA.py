@@ -19,7 +19,6 @@ RED = "\033[91m"
 RESET = "\033[0m"
 
 CSV_FIELDNAMES = [
-    "observation_time",
     "local_time",
     "raw_text",
     "report_type",
@@ -327,7 +326,7 @@ def append_live_row(metar, filename, station_timezone="UTC", station_metadata=No
     should_write_header = (not file_exists) or os.path.getsize(filename) == 0
 
     with open(filename, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
         if should_write_header:
             writer.writeheader()
         writer.writerow(row)
@@ -348,7 +347,7 @@ def read_last_live_record_key(filename):
         if not last_row:
             return None
 
-        obs_time = last_row.get("observation_time") or "-"
+        obs_time = last_row.get("observation_time") or last_row.get("local_time") or "-"
         raw_text = last_row.get("raw_text") or ""
         return obs_time, raw_text
     except Exception:
@@ -368,7 +367,7 @@ def save_to_csv(metars, filename, station_timezone="UTC", station_metadata=None)
         tzinfo = timezone.utc
     
     with open(filename, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
         writer.writeheader()
         for m in metars:
             writer.writerow(build_csv_row(m, tzinfo, station_metadata))
@@ -441,8 +440,8 @@ def realtime_mode(icao):
             latest = metars[0]  # data paling baru
             raw_text = get_field(latest, "raw_text", "rawOb") or ""
             obs_dt = get_observation_datetime(latest)
-            obs_time = obs_dt.isoformat() if obs_dt else "-"
-            record_key = (obs_time, raw_text)
+            local_time = obs_dt.astimezone(tzinfo).strftime("%Y-%m-%d %H:%M:%S") if obs_dt else "-"
+            record_key = (local_time, raw_text)
             report_type = is_speci(latest)
             temp_c = get_field(latest, "temp_c", "temp")
             dewpoint_c = get_field(latest, "dewpoint_c", "dewp")
@@ -455,7 +454,7 @@ def realtime_mode(icao):
             if record_key != last_record_key:
                 print(color_text("=" * 80, GREEN))
                 print(color_text(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}", GREEN))
-                print(f"observation_time : {obs_time}")
+                print(f"local_time       : {local_time}")
                 print(f"raw_text         : {raw_text}")
                 print(f"report_type      : {report_type}")
                 print(f"temp_c           : {temp_c if temp_c is not None else '-'}")

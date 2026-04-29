@@ -45,11 +45,24 @@ def format_time(obs_time_local):
 def format_time_24h(obs_time_local):
     if not obs_time_local:
         return ""
-    try:
-        dt = datetime.strptime(obs_time_local, "%Y-%m-%d %H:%M:%S")
-        return dt.strftime("%H:%M")
-    except:
-        return obs_time_local[11:16] if len(obs_time_local) >= 16 else obs_time_local
+
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(obs_time_local, fmt)
+            return dt.strftime("%m/%d/%Y %H:%M")
+        except ValueError:
+            continue
+
+    if len(obs_time_local) >= 16:
+        date_part = obs_time_local[:10]
+        time_part = obs_time_local[11:16]
+        try:
+            dt = datetime.strptime(date_part, "%Y-%m-%d")
+            return f"{dt.strftime('%m/%d/%Y')} {time_part}"
+        except ValueError:
+            pass
+
+    return obs_time_local
 
 def parse_input_date(date_str: str):
     if not date_str:

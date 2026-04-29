@@ -207,7 +207,7 @@ Visual guide:
 python metar_NOAA.py --icao <ICAO_CODE> today
 python metar_NOAA.py --icao <ICAO_CODE> history --date 2026-03-31
 python metar_NOAA.py --icao <ICAO_CODE> realtime
-py metar_WXaggregator.py --icao <ICAO_CODE>
+python metar_WXaggregator.py --icao <ICAO_CODE>
 python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --date 2026-01-01
 python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> today
 python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> today --interval 60
@@ -219,7 +219,6 @@ python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 
 ## Example Columns in the Output
 
-- `observation_time`
 - `local_time`
 - `raw_text`
 - `report_type`
@@ -243,11 +242,10 @@ python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 
 ## How to Read NOAA CSV Output
 
-Each CSV row represents one METAR/SPECI report at a specific observation time.
+Each CSV row represents one METAR/SPECI report at a specific station-local time.
 
 ### 1) Time and report identity
 
-- `observation_time`: observation time in UTC (ISO format), example `2026-04-14T03:00:00+00:00`.
 - `local_time`: local station time (timezone-converted), example `2026-04-14 10:00:00`.
 - `report_type`: report type, `METAR` (routine) or `SPECI` (special report when significant changes occur).
 - `raw_text`: the original raw METAR text; this is the main reference if you want to validate parsing.

@@ -191,7 +191,6 @@ def parse_metar(raw_report: str, icao: str):
         rmk_indicators = " ".join(rmk_indicators) if rmk_indicators else None
 
         return {
-            "observation_time": obs_time_utc.isoformat(),
             "local_time": local_time,
             "raw_text": raw_report,
             "report_type": report_type,
@@ -218,7 +217,7 @@ def parse_metar(raw_report: str, icao: str):
     except Exception as e:
         _log(f"Parse error: {e} → raw disimpan", "warning")
         return {
-            "observation_time": None, "local_time": None, "report_type": "METAR",
+            "local_time": None, "report_type": "METAR",
             "raw_text": raw_report, "temp_c": None, "dewpoint_c": None, "pressure_mb": None,
             "wind_dir": None, "wind_speed_kt": None, "wind_gust_kt": None, "wind_dir_var": None,
             "visibility": None, "cloud_layers": None, "wx_string": None,
@@ -321,7 +320,6 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
         try:
             obs_time = datetime(int(y), int(m), int(d), int(h), int(mi), tzinfo=pytz.UTC)
             row = parse_metar(report, icao)
-            row["observation_time"] = obs_time.isoformat() 
             data.append(row)
         except Exception as e:
             _log(f"Row parse error: {e}", "warning")

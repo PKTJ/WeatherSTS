@@ -25,7 +25,6 @@ STATION_INFO_URL = "https://aviationweather.gov/api/data/stationinfo"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
 CSV_FIELDNAMES = [
-    "observation_time",
     "local_time",
     "raw_text",
     "report_type",
@@ -56,7 +55,7 @@ def append_live_row(row, filename):
     should_write_header = (not file_exists) or os.path.getsize(filename) == 0
 
     with open(filename, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
         if should_write_header:
             writer.writeheader()
         writer.writerow(row)
@@ -76,7 +75,7 @@ def read_last_live_record_key(filename):
         if not last_row:
             return None
 
-        obs_time = last_row.get("observation_time") or "-"
+        obs_time = last_row.get("local_time") or last_row.get("observation_time") or "-"
         raw_text = last_row.get("raw_text") or ""
         return obs_time, raw_text
     except Exception:
@@ -552,14 +551,14 @@ def monitor_metar(icao, poll_interval):
                     metar = data["data"][0]
 
                     row = build_csv_row(metar, tzinfo, station_metadata)
-                    observed = row.get("observation_time") or "-"
+                    observed = row.get("local_time") or row.get("observation_time") or "-"
                     raw_text = row.get("raw_text") or ""
                     record_key = (observed, raw_text)
 
                     # Cek apakah ada data baru
                     if record_key != last_record_key:
                         print(color_text(f"[{wib_time}] Data BARU diterima!", GREEN))
-                        print(f"observation_time   : {observed}")
+                        print(f"local_time         : {observed}")
                         print(f"raw_text           : {raw_text or 'N/A'}")
                         print(f"report_type        : {row.get('report_type')}")
                         print(f"temp_c             : {row.get('temp_c')}")
