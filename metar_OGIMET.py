@@ -98,12 +98,20 @@ def _safe_numeric(value, unit=None):
         return None
 
 # ================== PARSING FUNCTION ==================
-def parse_metar(raw_report: str, icao: str):
+def parse_metar(raw_report: str, icao: str, obs_time_utc: datetime = None):
     try:
-        m = Metar.Metar(raw_report, strict=False)
-        if not m.time:
-            raise ValueError("No observation time found in METAR")
-        obs_time_utc = m.time.replace(tzinfo=pytz.UTC)
+        if obs_time_utc:
+            m = Metar.Metar(raw_report, strict=False, month=obs_time_utc.month, year=obs_time_utc.year)
+        else:
+            m = Metar.Metar(raw_report, strict=False)
+            
+        if obs_time_utc is None:
+            if not m.time:
+                raise ValueError("No observation time found in METAR")
+            obs_time_utc = m.time.replace(tzinfo=pytz.UTC)
+        else:
+            if m.time:
+                obs_time_utc = m.time.replace(tzinfo=pytz.UTC)
 
         station = get_station_info(icao)
         tz = pytz.timezone(station["tz"])
@@ -319,7 +327,7 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
         _, y, m, d, h, mi, report = cols
         try:
             obs_time = datetime(int(y), int(m), int(d), int(h), int(mi), tzinfo=pytz.UTC)
-            row = parse_metar(report, icao)
+            row = parse_metar(report, icao, obs_time_utc=obs_time)
             data.append(row)
         except Exception as e:
             _log(f"Row parse error: {e}", "warning")
@@ -333,6 +341,7 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
     filename = os.path.join(output_dir, f"{icao}_{date_str}.csv")
     df.to_csv(filename, index=False)
     _log(f"{len(data)} record → {filename}", "success")
+    return df
 
 # ================== ARGUMENT PARSER ==================
 if __name__ == "__main__":
@@ -357,10 +366,23 @@ if __name__ == "__main__":
         start = datetime.strptime(args.start, "%Y-%m-%d")
         end = datetime.strptime(args.end, "%Y-%m-%d")
         current = start
+        all_dfs = []
         while current <= end:
-            scrape_day(args.icao, current, args.output)
-            sleep(RANGE_DELAY_SECONDS) 
+            df = scrape_day(args.icao, current, args.output)
+            if df is not None and not df.empty:
+                all_dfs.append(df)
+            
+            if current < end:
+                sleep(RANGE_DELAY_SECONDS) 
             current += timedelta(days=1)
+            
+        if all_dfs:
+            final_df = pd.concat(all_dfs, ignore_index=True)
+            if 'local_time' in final_df.columns:
+                final_df = final_df.sort_values('local_time')
+            final_filename = os.path.join(args.output, f"{args.icao}_final.csv")
+            final_df.to_csv(final_filename, index=False)
+            _log(f"\nBerhasil menggabungkan {len(final_df)} record ke {final_filename}", "success")
     else:
         _log("Harus pakai --date atau --start + --end", "error")
         run_ok = False
