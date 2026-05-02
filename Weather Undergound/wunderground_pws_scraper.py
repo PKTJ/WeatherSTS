@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import json
 import csv
 import time
@@ -408,7 +408,7 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
     total_days = (end_date - start_date).days + 1
     merged_csv = os.path.join(
         csv_dir,
-        f"pws_{station_id}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv",
+        f"pws_{station_id}_final.csv",
     )
 
     print(
