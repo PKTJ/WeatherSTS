@@ -7,7 +7,7 @@ import os
 import random
 import re
 from datetime import datetime, timedelta
-
+import pandas as pd
 # ================== KONFIGURASI ==================
 API_KEY = "MASUKAN_API_KEY"    # Key dari Network tab
 UNITS = "m"                    # m = metric
@@ -376,7 +376,38 @@ def fetch_history(date_str: str, station_id: str):
     print("Fallback history/hourly juga kosong.")
     return fallback_data
 
-def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_seconds, output_dir, station_id):
+def update_final_pws_csv(new_csv_path, final_csv_path):
+    if not os.path.exists(new_csv_path):
+        return
+    try:
+        new_df = pd.read_csv(new_csv_path)
+    except Exception as e:
+        print(f"Gagal membaca {new_csv_path}: {e}")
+        return
+
+    if new_df.empty:
+        return
+
+    if os.path.exists(final_csv_path):
+        try:
+            existing_df = pd.read_csv(final_csv_path)
+            combined = pd.concat([existing_df, new_df], ignore_index=True)
+            if 'Time' in combined.columns:
+                combined = combined.drop_duplicates(subset=['Time'], keep='first')
+                combined['Time_dt'] = pd.to_datetime(combined['Time'], format='%m/%d/%Y %H:%M', errors='coerce')
+                combined = combined.sort_values('Time_dt').drop(columns=['Time_dt'])
+            combined.to_csv(final_csv_path, index=False)
+            print(f"  -> Update file gabungan: {final_csv_path} (Total {len(combined)} record)")
+        except Exception as e:
+            print(f"  -> Gagal update gabungan {final_csv_path}: {e}")
+    else:
+        if 'Time' in new_df.columns:
+            new_df['Time_dt'] = pd.to_datetime(new_df['Time'], format='%m/%d/%Y %H:%M', errors='coerce')
+            new_df = new_df.sort_values('Time_dt').drop(columns=['Time_dt'])
+        new_df.to_csv(final_csv_path, index=False)
+        print(f"  -> Dibuat file gabungan baru: {final_csv_path} ({len(new_df)} record)")
+
+def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_seconds, output_dir, station_id, manual_output_dir=None):
     start_date = parse_input_date(start_date_str)
     end_date = parse_input_date(end_date_str)
 
@@ -405,11 +436,18 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
 
     json_dir, csv_dir = ensure_split_output_dirs(output_dir)
 
-    total_days = (end_date - start_date).days + 1
+    if manual_output_dir:
+        final_dir = manual_output_dir
+    else:
+        final_dir = "output"
+        os.makedirs(final_dir, exist_ok=True)
+
     merged_csv = os.path.join(
-        csv_dir,
+        final_dir,
         f"pws_{station_id}_final.csv",
     )
+
+    total_days = (end_date - start_date).days + 1
 
     print(
         f"Mulai batch history {start_date.strftime('%Y-%m-%d')} s/d {end_date.strftime('%Y-%m-%d')} "
@@ -424,8 +462,6 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
     days_with_data = 0
     empty_days = []
     failed_days = []
-    merged_rows = 0
-    merged_mode = "w"
 
     for idx, current_date in enumerate(iter_dates(start_date, end_date), start=1):
         date_str = current_date.strftime("%Y%m%d")
@@ -444,9 +480,7 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
 
             if observations:
                 save_to_csv(observations, csv_path, mode="w")
-                save_to_csv(observations, merged_csv, mode=merged_mode)
-                merged_mode = "a"
-                merged_rows += len(observations)
+                update_final_pws_csv(csv_path, merged_csv)
                 days_with_data += 1
             else:
                 empty_days.append(date_str)
@@ -466,8 +500,8 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
     print(f"Kosong              : {len(empty_days)}")
     print(f"Gagal               : {len(failed_days)}")
 
-    if merged_rows > 0:
-        print(f"CSV gabungan        : {merged_csv} ({merged_rows} baris)")
+    if os.path.exists(merged_csv):
+        print(f"CSV gabungan        : {merged_csv}")
     else:
         print("CSV gabungan        : tidak dibuat (tidak ada observations)")
 
@@ -791,6 +825,7 @@ def main():
             jitter_seconds=args.request_jitter,
             output_dir=output_dir,
             station_id=station_id,
+            manual_output_dir=args.output_dir,
         )
         return
 
@@ -870,6 +905,11 @@ def main():
 
             if obs:
                 save_to_csv(obs, csv_path, mode="w")
+                final_dir = args.output_dir if args.output_dir else "output"
+                os.makedirs(final_dir, exist_ok=True)
+                merged_csv = os.path.join(final_dir, f"pws_{station_id}_final.csv")
+                update_final_pws_csv(csv_path, merged_csv)
+                
                 print(f"Selesai! File CSV & JSON sudah siap: {csv_path}")
                 print(f"File JSON            : {json_path}")
             else:

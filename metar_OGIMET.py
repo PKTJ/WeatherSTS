@@ -343,6 +343,27 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
     _log(f"{len(data)} record → {filename}", "success")
     return df
 
+def update_final_csv_metar(new_df, output_dir, icao):
+    if new_df is None or new_df.empty:
+        return
+    final_filename = os.path.join(output_dir, f"{icao}_final.csv")
+    if os.path.exists(final_filename):
+        try:
+            existing_df = pd.read_csv(final_filename)
+            combined = pd.concat([existing_df, new_df], ignore_index=True)
+            if 'local_time' in combined.columns:
+                combined = combined.drop_duplicates(subset=['local_time'], keep='first')
+                combined = combined.sort_values('local_time')
+            combined.to_csv(final_filename, index=False)
+            _log(f"\nBerhasil mengupdate file gabungan {final_filename} (total {len(combined)} record)", "success")
+        except Exception as e:
+            _log(f"\nGagal update gabungan: {e}", "error")
+    else:
+        if 'local_time' in new_df.columns:
+            new_df = new_df.sort_values('local_time')
+        new_df.to_csv(final_filename, index=False)
+        _log(f"\nBerhasil membuat file gabungan baru {final_filename} dengan {len(new_df)} record", "success")
+
 # ================== ARGUMENT PARSER ==================
 if __name__ == "__main__":
     _init_terminal_colors()
@@ -360,7 +381,8 @@ if __name__ == "__main__":
     if args.date:
         # Mode single day
         target = datetime.strptime(args.date, "%Y-%m-%d")
-        scrape_day(args.icao, target, args.output)
+        df = scrape_day(args.icao, target, args.output)
+        update_final_csv_metar(df, args.output, args.icao)
     elif args.start and args.end:
         # Mode range
         start = datetime.strptime(args.start, "%Y-%m-%d")
@@ -378,11 +400,7 @@ if __name__ == "__main__":
             
         if all_dfs:
             final_df = pd.concat(all_dfs, ignore_index=True)
-            if 'local_time' in final_df.columns:
-                final_df = final_df.sort_values('local_time')
-            final_filename = os.path.join(args.output, f"{args.icao}_final.csv")
-            final_df.to_csv(final_filename, index=False)
-            _log(f"\nBerhasil menggabungkan {len(final_df)} record ke {final_filename}", "success")
+            update_final_csv_metar(final_df, args.output, args.icao)
     else:
         _log("Harus pakai --date atau --start + --end", "error")
         run_ok = False
