@@ -1,11 +1,3 @@
-"""
-inf_global_model.py - CLI tool for fetching global weather model data from Open-Meteo API.
-
-Supports batch date ranges, single-date queries, and real-time polling
-with model-aware update scheduling. Output is stored as separate CSV files
-per model with deduplication and chronological sorting.
-"""
-
 import requests
 import pandas as pd
 from datetime import datetime, timezone
@@ -20,7 +12,6 @@ MODELS = {
     "gfs": {"api_name": "gfs_seamless", "updates_per_day": 4},
     "icon": {"api_name": "icon_seamless", "updates_per_day": 8},
     "ecmwf_ifs": {"api_name": "ecmwf_ifs025", "updates_per_day": 2},
-    "ecmwf_aifs": {"api_name": "ecmwf_aifs025", "updates_per_day": 2},
     "gem": {"api_name": "gem_seamless", "updates_per_day": 4},
     "arpege": {"api_name": "arpege_seamless", "updates_per_day": 4},
     "access_g": {"api_name": "bom_access_global", "updates_per_day": 4},
@@ -36,13 +27,28 @@ HOURLY_VARS = [
     "apparent_temperature",
     "precipitation",
     "rain",
+    "cape",
     "snowfall",
-    "cloud_cover",
+    "cloud_cover_low",
+    "cloud_cover_mid",
+    "cloud_cover_high",
     "wind_speed_10m",
     "wind_direction_10m",
     "wind_gusts_10m",
     "pressure_msl",
-    "visibility",
+    "surface_pressure",
+    "vapour_pressure_deficit",
+    "shortwave_radiation",
+    "direct_radiation",
+    "diffuse_radiation",
+    "soil_temperature_0cm",
+    "soil_temperature_6cm",
+    "soil_temperature_18cm",
+    "soil_temperature_54cm",
+    "soil_moisture_0_to_1cm",
+    "et0_fao_evapotranspiration",
+    "freezing_level_height",
+    "is_day",
 ]
 
 # ====================== RETRY CONFIGURATION ======================
@@ -68,18 +74,6 @@ def color_text(text, color):
 
 
 def validate_date(date_string):
-    """
-    Validate and parse a date string in YYYY-MM-DD format.
-
-    Args:
-        date_string: String to validate as a date.
-
-    Returns:
-        The validated date string if format is correct.
-
-    Raises:
-        argparse.ArgumentTypeError: If the date format is invalid.
-    """
     try:
         datetime.strptime(date_string, "%Y-%m-%d")
         return date_string
@@ -90,12 +84,6 @@ def validate_date(date_string):
 
 
 def build_parser():
-    """
-    Build and return the argparse parser for the global model CLI.
-
-    Returns:
-        argparse.ArgumentParser: Configured argument parser.
-    """
     parser = argparse.ArgumentParser(
         description="Global Weather Model Data Fetcher - Open-Meteo API"
     )
@@ -138,6 +126,15 @@ def build_parser():
         help="Folder output (default: global_model_data)",
     )
 
+    # Optional model filter
+    parser.add_argument(
+        "--model",
+        nargs="+",
+        choices=list(MODELS.keys()),
+        default=None,
+        help="Model tertentu yang ingin ditarik (default: semua). Contoh: --model gfs icon",
+    )
+
     # Subcommands
     subparsers = parser.add_subparsers(dest="mode")
     subparsers.add_parser("realtime", help="Mode realtime: polling data terbaru secara kontinu")
@@ -146,18 +143,6 @@ def build_parser():
 
 
 def parse_and_validate_args(args=None):
-    """
-    Parse CLI arguments and perform cross-field validation.
-
-    Args:
-        args: Optional list of argument strings (for testing). If None, uses sys.argv.
-
-    Returns:
-        argparse.Namespace: Validated parsed arguments.
-
-    Exits:
-        With non-zero status code if validation fails.
-    """
     parser = build_parser()
     parsed = parser.parse_args(args)
 
@@ -186,25 +171,6 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 def fetch_model_data(model_name: str, lat: float, lon: float,
                      start_date: str, end_date: str,
                      endpoint: str = "historical") -> dict:
-    """
-    Fetch data for a single model from Open-Meteo API.
-
-    Args:
-        model_name: Key from MODELS dict (e.g., "gfs", "icon")
-        lat: Target latitude
-        lon: Target longitude
-        start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
-        endpoint: "historical" or "forecast"
-
-    Returns:
-        JSON response dict from the API.
-
-    Raises:
-        requests.HTTPError: On HTTP error responses (4xx/5xx).
-        requests.Timeout: On request timeout.
-        requests.ConnectionError: On network connection issues.
-    """
     # Select URL based on endpoint type
     if endpoint == "forecast":
         url = FORECAST_URL
@@ -240,32 +206,6 @@ def fetch_model_data(model_name: str, lat: float, lon: float,
 def fetch_with_retry(model_name: str, lat: float, lon: float,
                      start_date: str, end_date: str,
                      endpoint: str = "historical") -> dict:
-    """
-    Fetch model data with retry logic and exponential backoff.
-
-    Wraps fetch_model_data() with resilience handling:
-    - Retries up to MAX_RETRIES times on timeout or connection errors
-    - Uses exponential backoff: BASE_DELAY * (BACKOFF_FACTOR ** attempt)
-    - Logs each retry attempt with model name and attempt number
-    - On HTTP errors, logs error with model name and status code (no retry)
-    - After all retries exhausted, raises the exception to the caller
-
-    Args:
-        model_name: Key from MODELS dict (e.g., "gfs", "icon")
-        lat: Target latitude
-        lon: Target longitude
-        start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
-        endpoint: "historical" or "forecast"
-
-    Returns:
-        JSON response dict from the API.
-
-    Raises:
-        requests.HTTPError: On HTTP error responses (4xx/5xx), immediately without retry.
-        requests.Timeout: After all retries exhausted on timeout.
-        requests.ConnectionError: After all retries exhausted on connection failure.
-    """
     for attempt in range(MAX_RETRIES + 1):
         try:
             return fetch_model_data(model_name, lat, lon, start_date, end_date, endpoint)
@@ -293,27 +233,12 @@ def fetch_with_retry(model_name: str, lat: float, lon: float,
 
 def parse_response(response_json: dict, model_name: str,
                    lat: float, lon: float) -> pd.DataFrame:
-    """
-    Parse Open-Meteo API JSON response into a DataFrame.
-
-    Extracts the "hourly" key from the response, uses the "time" array as the
-    datetime column, and adds each hourly variable as a column. Missing variables
-    are filled with None/NaN.
-
-    Args:
-        response_json: JSON response dict from the Open-Meteo API.
-        model_name: Model identifier (e.g., "gfs", "icon").
-        lat: Target latitude used in the request.
-        lon: Target longitude used in the request.
-
-    Returns:
-        DataFrame with columns: datetime, model, latitude, longitude,
-        and all 13 Hourly_Variables.
-    """
     hourly_data = response_json.get("hourly", {})
 
     # Build the DataFrame starting with the datetime column
-    data = {"datetime": hourly_data.get("time", [])}
+    # Convert ISO format "YYYY-MM-DDTHH:MM" to "YYYY-MM-DD HH:MM"
+    raw_times = hourly_data.get("time", [])
+    data = {"datetime": [t.replace("T", " ") if isinstance(t, str) else t for t in raw_times]}
 
     # Add each hourly variable; use None if not present in response
     for var in HOURLY_VARS:
@@ -337,22 +262,6 @@ def parse_response(response_json: dict, model_name: str,
 
 
 def write_model_csv(df: pd.DataFrame, model_name: str, output_dir: str) -> int:
-    """
-    Write DataFrame to model-specific CSV file with deduplication and sorting.
-
-    Creates the output directory if it doesn't exist. If the CSV file already
-    exists, reads existing data, concatenates with new data, removes duplicate
-    rows based on the datetime column (keeping the first occurrence), sorts by
-    datetime ascending, and writes the result back.
-
-    Args:
-        df: New data to write/append.
-        model_name: Model identifier (used for filename).
-        output_dir: Target directory for CSV files.
-
-    Returns:
-        Number of duplicate rows skipped.
-    """
     # 1. Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
@@ -396,30 +305,19 @@ def write_model_csv(df: pd.DataFrame, model_name: str, output_dir: str) -> int:
 # ====================== BATCH MODE ======================
 
 
-def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir: str):
-    """
-    Fetch historical forecast data for a date range for all models.
+def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir: str, models: dict = None):
+    if models is None:
+        models = MODELS
 
-    Iterates over all 8 models, calls fetch_with_retry() with the historical
-    endpoint, parses the response, and writes to per-model CSV files.
-    On error for a model, logs the error and continues to the next model.
-
-    Args:
-        lat: Target latitude.
-        lon: Target longitude.
-        start_date: Start date in YYYY-MM-DD format.
-        end_date: End date in YYYY-MM-DD format.
-        output_dir: Directory for output CSV files.
-    """
     print(f"Mode BATCH: {start_date} sampai {end_date}")
     print(f"Koordinat: {lat}, {lon}")
     print(f"Output: {output_dir}/")
-    print(f"Models: {', '.join(MODELS.keys())}\n")
+    print(f"Models: {', '.join(models.keys())}\n")
 
     success_count = 0
     error_count = 0
 
-    for model_name in MODELS:
+    for model_name in models:
         print(f"  Fetching {model_name.upper()}...", end=" ")
         try:
             response_json = fetch_with_retry(
@@ -439,29 +337,19 @@ def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir
 # ====================== SINGLE DATE MODE ======================
 
 
-def run_single_date(lat: float, lon: float, date: str, output_dir: str):
-    """
-    Fetch historical forecast data for a single date for all models.
+def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: dict = None):
+    if models is None:
+        models = MODELS
 
-    Sets start_date and end_date both to the provided date value, then
-    iterates over all 8 models using the same logic as run_batch().
-    On error for a model, logs the error and continues to the next model.
-
-    Args:
-        lat: Target latitude.
-        lon: Target longitude.
-        date: Target date in YYYY-MM-DD format.
-        output_dir: Directory for output CSV files.
-    """
     print(f"Mode SINGLE DATE: {date}")
     print(f"Koordinat: {lat}, {lon}")
     print(f"Output: {output_dir}/")
-    print(f"Models: {', '.join(MODELS.keys())}\n")
+    print(f"Models: {', '.join(models.keys())}\n")
 
     success_count = 0
     error_count = 0
 
-    for model_name in MODELS:
+    for model_name in models:
         print(f"  Fetching {model_name.upper()}...", end=" ")
         try:
             response_json = fetch_with_retry(
@@ -482,20 +370,6 @@ def run_single_date(lat: float, lon: float, date: str, output_dir: str):
 
 
 def calculate_next_update(model_name: str, last_fetch_time: datetime) -> datetime:
-    """
-    Calculate when a model's next update is expected.
-
-    Based on updates_per_day, divides 24h into equal intervals.
-    E.g., GFS (4/day) → every 6 hours starting from 00:00 UTC.
-    Returns the next scheduled update time after last_fetch_time.
-
-    Args:
-        model_name: Key from MODELS dict (e.g., "gfs", "icon").
-        last_fetch_time: The last time this model was fetched (UTC).
-
-    Returns:
-        datetime: The next scheduled update time (UTC).
-    """
     from datetime import timedelta
 
     updates_per_day = MODELS[model_name]["updates_per_day"]
@@ -506,21 +380,6 @@ def calculate_next_update(model_name: str, last_fetch_time: datetime) -> datetim
 
 
 def should_fetch_model(model_name: str, last_fetched, now: datetime) -> bool:
-    """
-    Determine if a model should be fetched based on its update schedule.
-
-    If never fetched (last_fetched is None), always fetch.
-    Otherwise, check if enough time has passed since last fetch based on
-    the model's updates_per_day (interval = 24h / updates_per_day).
-
-    Args:
-        model_name: Key from MODELS dict.
-        last_fetched: The last time this model was fetched (datetime or None).
-        now: Current UTC time.
-
-    Returns:
-        True if the model should be fetched, False otherwise.
-    """
     if last_fetched is None:
         return True
 
@@ -532,30 +391,21 @@ def should_fetch_model(model_name: str, last_fetched, now: datetime) -> bool:
     return elapsed >= interval_seconds
 
 
-def run_realtime(lat: float, lon: float, output_dir: str):
-    """
-    Continuously poll for latest forecast data with model-aware scheduling.
+def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None):
+    if models is None:
+        models = MODELS
 
-    Uses the forecast endpoint (not historical) and respects each model's
-    update frequency. Displays status messages each cycle showing which
-    models were fetched and which were skipped. Sleeps 15 minutes between
-    check cycles. Handles KeyboardInterrupt for graceful shutdown with summary.
-
-    Args:
-        lat: Target latitude.
-        lon: Target longitude.
-        output_dir: Directory for output CSV files.
-    """
     CHECK_INTERVAL = 900  # 15 minutes in seconds
 
     print(f"Mode REALTIME: polling kontinu")
     print(f"Koordinat: {lat}, {lon}")
     print(f"Output: {output_dir}/")
     print(f"Check interval: {CHECK_INTERVAL // 60} menit")
+    print(f"Models: {', '.join(models.keys())}")
     print(f"Tekan Ctrl+C untuk berhenti.\n")
 
     # Track last fetch time per model (None = never fetched)
-    last_fetched = {model: None for model in MODELS}
+    last_fetched = {model: None for model in models}
     total_fetches = 0
     total_errors = 0
 
@@ -565,7 +415,7 @@ def run_realtime(lat: float, lon: float, output_dir: str):
             fetched_this_cycle = []
             skipped_this_cycle = []
 
-            for model_name in MODELS:
+            for model_name in models:
                 if should_fetch_model(model_name, last_fetched[model_name], now):
                     try:
                         response_json = fetch_with_retry(
@@ -599,26 +449,25 @@ def run_realtime(lat: float, lon: float, output_dir: str):
 
 
 def main():
-    """
-    Main function that ties all components together.
-
-    Parses CLI arguments, creates the output directory, and routes
-    to the appropriate mode function based on parsed arguments.
-    Handles top-level exceptions gracefully.
-    """
     try:
         args = parse_and_validate_args()
 
         # Create output directory
         os.makedirs(args.output, exist_ok=True)
 
+        # Filter models if --model is specified
+        if args.model:
+            selected_models = {k: MODELS[k] for k in args.model}
+        else:
+            selected_models = MODELS
+
         # Route to appropriate mode
         if args.mode == "realtime":
-            run_realtime(args.lat, args.lon, args.output)
+            run_realtime(args.lat, args.lon, args.output, selected_models)
         elif args.date:
-            run_single_date(args.lat, args.lon, args.date, args.output)
+            run_single_date(args.lat, args.lon, args.date, args.output, selected_models)
         elif args.start and args.end:
-            run_batch(args.lat, args.lon, args.start, args.end, args.output)
+            run_batch(args.lat, args.lon, args.start, args.end, args.output, selected_models)
         else:
             # This shouldn't be reached due to parse_and_validate_args validation,
             # but included as a safety net.
