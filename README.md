@@ -191,45 +191,52 @@ python inf_global_model.py -h
 #### Batch mode (date range)
 
 ```bash
-python inf_global_model.py --lat -6.98 --lon 110.41 --start 2025-04-01 --end 2025-04-30
+python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025-04-30
 ```
 
 #### Single date
 
 ```bash
-python inf_global_model.py --lat -6.98 --lon 110.41 --date 2025-06-15
+python inf_global_model.py --lat <LAT> --lon <LON> --date 2025-06-15
 ```
 
 #### Realtime polling
 
 ```bash
-python inf_global_model.py --lat -6.98 --lon 110.41 realtime
+python inf_global_model.py --lat <LAT> --lon <LON> realtime
+```
+
+#### Realtime polling with filter (preserve existing data)
+
+```bash
+python inf_global_model.py --lat <LAT> --lon <LON> --filter realtime
 ```
 
 #### Custom output folder
 
 ```bash
-python inf_global_model.py --lat -6.98 --lon 110.41 --date 2025-06-15 --output my_data
+python inf_global_model.py --lat <LAT> --lon <LON> --date 2025-06-15 --output my_data
 ```
 
 #### Fetch specific models only
 
 ```bash
-python inf_global_model.py --lat -6.98 --lon 110.41 --date 2025-06-15 --model gfs icon
+python inf_global_model.py --lat <LAT> --lon <LON> --date 2025-06-15 --model gfs icon
 ```
 
 ```bash
-python inf_global_model.py --lat -6.98 --lon 110.41 --start 2025-04-01 --end 2025-04-30 --model ecmwf_ifs gem
+python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025-04-30 --model ecmwf_ifs gem
 ```
 
 ```bash
-python inf_global_model.py --lat -6.98 --lon 110.41 realtime --model gfs icon gem
+python inf_global_model.py --lat <LAT> --lon <LON> realtime --model gfs icon gem
 ```
 
 #### Notes
 
 - Available models: `gfs`, `icon`, `ecmwf_ifs`, `gem`, `arpege`, `access_g`, `era5`.
 - If `--model` is not provided, all 7 models are fetched by default.
+- `--filter`: jika digunakan, data yang sudah ada di CSV tidak akan di-overwrite. Tanpa `--filter`, data lama akan diganti dengan data terbaru dari model run terbaru. Berguna di mode realtime karena model bisa menghasilkan data baru untuk jam yang sudah lewat.
 
 - Output is stored as separate CSV files per model (e.g., `gfs.csv`, `icon.csv`, `ecmwf_ifs.csv`) inside the output folder (default: `global_model_data/`).
 - Deduplication: if data for the same datetime already exists in the CSV, it will not be written again.
@@ -280,6 +287,7 @@ python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 python inf_global_model.py --lat <LAT> --lon <LON> --date 2025-06-15
 python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025-04-30
 python inf_global_model.py --lat <LAT> --lon <LON> realtime
+python inf_global_model.py --lat <LAT> --lon <LON> --filter realtime
 python inf_global_model.py --lat <LAT> --lon <LON> --date 2025-06-15 --model gfs icon
 ```
 

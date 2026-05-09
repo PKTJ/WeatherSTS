@@ -7,7 +7,6 @@ import time
 import argparse
 
 # ====================== MODEL CONFIGURATION ======================
-
 MODELS = {
     "gfs": {"api_name": "gfs_seamless", "updates_per_day": 4},
     "icon": {"api_name": "icon_seamless", "updates_per_day": 8},
@@ -19,7 +18,6 @@ MODELS = {
 }
 
 # ====================== HOURLY VARIABLES ======================
-
 HOURLY_VARS = [
     "temperature_2m",
     "relative_humidity_2m",
@@ -52,13 +50,11 @@ HOURLY_VARS = [
 ]
 
 # ====================== RETRY CONFIGURATION ======================
-
 MAX_RETRIES = 3
 BASE_DELAY = 2        # seconds
 BACKOFF_FACTOR = 2    # exponential: 2s, 4s, 8s
 
 # ====================== TERMINAL COLORS ======================
-
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
@@ -71,8 +67,6 @@ def color_text(text, color):
 
 
 # ====================== CLI ARGUMENT PARSING ======================
-
-
 def validate_date(date_string):
     try:
         datetime.strptime(date_string, "%Y-%m-%d")
@@ -135,6 +129,15 @@ def build_parser():
         help="Model tertentu yang ingin ditarik (default: semua). Contoh: --model gfs icon",
     )
 
+    # Optional filter flag for realtime deduplication behavior
+    parser.add_argument(
+        "--filter",
+        action="store_true",
+        default=False,
+        help="Jika digunakan, data yang sudah ada di CSV tidak akan di-overwrite oleh data baru (keep existing). "
+             "Tanpa --filter, data lama akan diganti dengan data terbaru dari model run terbaru.",
+    )
+
     # Subcommands
     subparsers = parser.add_subparsers(dest="mode")
     subparsers.add_parser("realtime", help="Mode realtime: polling data terbaru secara kontinu")
@@ -162,7 +165,6 @@ def parse_and_validate_args(args=None):
 
 
 # ====================== API CLIENT ======================
-
 # API endpoint URLs
 HISTORICAL_URL = "https://historical-forecast-api.open-meteo.com/v1/forecast"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -187,6 +189,7 @@ def fetch_model_data(model_name: str, lat: float, lon: float,
         "longitude": lon,
         "hourly": ",".join(HOURLY_VARS),
         "models": api_model_name,
+        "timezone": "auto",
     }
 
     # For forecast endpoint, use forecast_days=1 instead of start/end dates
@@ -229,8 +232,6 @@ def fetch_with_retry(model_name: str, lat: float, lon: float,
 
 
 # ====================== RESPONSE PARSER ======================
-
-
 def parse_response(response_json: dict, model_name: str,
                    lat: float, lon: float) -> pd.DataFrame:
     hourly_data = response_json.get("hourly", {})
@@ -250,62 +251,62 @@ def parse_response(response_json: dict, model_name: str,
     df["model"] = model_name.upper()
     df["latitude"] = lat
     df["longitude"] = lon
+    df["timezone"] = response_json.get("timezone", "UTC")
+    df["utc_offset_seconds"] = response_json.get("utc_offset_seconds", 0)
 
-    # Reorder columns: datetime, model, latitude, longitude, then hourly vars
-    column_order = ["datetime", "model", "latitude", "longitude"] + HOURLY_VARS
+    # Reorder columns: datetime, model, latitude, longitude, timezone, utc_offset_seconds, then hourly vars
+    column_order = ["datetime", "model", "latitude", "longitude", "timezone", "utc_offset_seconds"] + HOURLY_VARS
     df = df[column_order]
 
     return df
 
 
 # ====================== CSV WRITER WITH DEDUPLICATION ======================
-
-
-def write_model_csv(df: pd.DataFrame, model_name: str, output_dir: str) -> int:
+def write_model_csv(df: pd.DataFrame, model_name: str, output_dir: str, keep_existing: bool = True) -> int:
     # 1. Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
     # 2. Build filepath as {output_dir}/{model_name}.csv
     filepath = os.path.join(output_dir, f"{model_name}.csv")
 
-    # 3. If file exists, read existing CSV into a DataFrame
+    # 3. If file exists, read existing CSV and concatenate
     if os.path.exists(filepath):
         existing_df = pd.read_csv(filepath)
-        # 4. Concatenate existing + new data
-        combined_df = pd.concat([existing_df, df], ignore_index=True)
+        if keep_existing:
+            # keep='first' → existing data preserved, new duplicates skipped
+            combined_df = pd.concat([existing_df, df], ignore_index=True)
+            rows_before = len(combined_df)
+            combined_df = combined_df.drop_duplicates(subset=["datetime"], keep="first")
+        else:
+            # keep='last' → new data overwrites existing duplicates
+            combined_df = pd.concat([existing_df, df], ignore_index=True)
+            rows_before = len(combined_df)
+            combined_df = combined_df.drop_duplicates(subset=["datetime"], keep="last")
     else:
         combined_df = df.copy()
+        rows_before = len(combined_df)
+        combined_df = combined_df.drop_duplicates(subset=["datetime"], keep="last")
 
-    # 5. Count rows before dedup
-    rows_before = len(combined_df)
+    duplicates_removed = rows_before - len(combined_df)
 
-    # 6. Drop duplicates based on datetime column (keep='first')
-    combined_df = combined_df.drop_duplicates(subset=["datetime"], keep="first")
-
-    # 7. Count rows after dedup → difference = duplicates_removed
-    rows_after = len(combined_df)
-    duplicates_removed = rows_before - rows_after
-
-    # 8. Sort by datetime ascending
+    # 4. Sort by datetime ascending
     combined_df = combined_df.sort_values(by="datetime", ascending=True).reset_index(drop=True)
 
-    # 9. Write to CSV (index=False)
+    # 5. Write to CSV (index=False)
     combined_df.to_csv(filepath, index=False)
 
-    # 10. Log the number of duplicates skipped (if any)
+    # 6. Log the number of duplicates handled (if any)
     if duplicates_removed > 0:
+        action = "skipped" if keep_existing else "updated"
         print(color_text(
-            f"[{model_name}] {duplicates_removed} duplicate row(s) skipped.", YELLOW
+            f"[{model_name}] {duplicates_removed} duplicate row(s) {action}.", YELLOW
         ))
 
-    # 11. Return duplicates_removed
     return duplicates_removed
 
 
 # ====================== BATCH MODE ======================
-
-
-def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir: str, models: dict = None):
+def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir: str, models: dict = None, keep_existing: bool = True):
     if models is None:
         models = MODELS
 
@@ -324,8 +325,9 @@ def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir
                 model_name, lat, lon, start_date, end_date, endpoint="historical"
             )
             df = parse_response(response_json, model_name, lat, lon)
-            duplicates = write_model_csv(df, model_name, output_dir)
-            print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates skipped)", GREEN))
+            duplicates = write_model_csv(df, model_name, output_dir, keep_existing)
+            action = "skipped" if keep_existing else "updated"
+            print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates {action})", GREEN))
             success_count += 1
         except Exception as e:
             print(color_text(f"GAGAL: {e}", RED))
@@ -335,9 +337,7 @@ def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir
 
 
 # ====================== SINGLE DATE MODE ======================
-
-
-def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: dict = None):
+def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: dict = None, keep_existing: bool = True):
     if models is None:
         models = MODELS
 
@@ -356,8 +356,9 @@ def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: 
                 model_name, lat, lon, date, date, endpoint="historical"
             )
             df = parse_response(response_json, model_name, lat, lon)
-            duplicates = write_model_csv(df, model_name, output_dir)
-            print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates skipped)", GREEN))
+            duplicates = write_model_csv(df, model_name, output_dir, keep_existing)
+            action = "skipped" if keep_existing else "updated"
+            print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates {action})", GREEN))
             success_count += 1
         except Exception as e:
             print(color_text(f"GAGAL: {e}", RED))
@@ -367,8 +368,6 @@ def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: 
 
 
 # ====================== REALTIME MODE ======================
-
-
 def calculate_next_update(model_name: str, last_fetch_time: datetime) -> datetime:
     from datetime import timedelta
 
@@ -391,17 +390,19 @@ def should_fetch_model(model_name: str, last_fetched, now: datetime) -> bool:
     return elapsed >= interval_seconds
 
 
-def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None):
+def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None, keep_existing: bool = True):
     if models is None:
         models = MODELS
 
     CHECK_INTERVAL = 900  # 15 minutes in seconds
 
+    filter_mode = "ON (data lama dipertahankan)" if keep_existing else "OFF (data lama di-overwrite)"
     print(f"Mode REALTIME: polling kontinu")
     print(f"Koordinat: {lat}, {lon}")
     print(f"Output: {output_dir}/")
     print(f"Check interval: {CHECK_INTERVAL // 60} menit")
     print(f"Models: {', '.join(models.keys())}")
+    print(f"Filter: {filter_mode}")
     print(f"Tekan Ctrl+C untuk berhenti.\n")
 
     # Track last fetch time per model (None = never fetched)
@@ -422,7 +423,7 @@ def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None):
                             model_name, lat, lon, "", "", endpoint="forecast"
                         )
                         df = parse_response(response_json, model_name, lat, lon)
-                        write_model_csv(df, model_name, output_dir)
+                        write_model_csv(df, model_name, output_dir, keep_existing)
                         last_fetched[model_name] = now
                         fetched_this_cycle.append(model_name)
                         total_fetches += 1
@@ -446,8 +447,6 @@ def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None):
 
 
 # ====================== MAIN ENTRY POINT ======================
-
-
 def main():
     try:
         args = parse_and_validate_args()
@@ -463,11 +462,11 @@ def main():
 
         # Route to appropriate mode
         if args.mode == "realtime":
-            run_realtime(args.lat, args.lon, args.output, selected_models)
+            run_realtime(args.lat, args.lon, args.output, selected_models, args.filter)
         elif args.date:
-            run_single_date(args.lat, args.lon, args.date, args.output, selected_models)
+            run_single_date(args.lat, args.lon, args.date, args.output, selected_models, args.filter)
         elif args.start and args.end:
-            run_batch(args.lat, args.lon, args.start, args.end, args.output, selected_models)
+            run_batch(args.lat, args.lon, args.start, args.end, args.output, selected_models, args.filter)
         else:
             # This shouldn't be reached due to parse_and_validate_args validation,
             # but included as a safety net.
