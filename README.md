@@ -12,8 +12,10 @@ Python scripts for retrieving METAR data from several sources:
 - `metar_NOAA.py`: retrieves METAR history and real-time monitoring from NOAA.
 - `metar_WXaggregator.py`: real-time METAR monitoring based on CheckWX (decoded).
 - `metar_OGIMET.py`: retrieves METAR history from OGIMET (single date or date range).
+- `inf_global_model.py`: fetches global weather model data (GFS, ICON, ECMWF, GEM, ARPEGE, ACCESS-G, ERA5) from Open-Meteo API.
 - `Weather Undergound/wunderground_pws_scraper.py`: history and polling for Weather Underground PWS data.
 - `ogimet_data/`: default CSV output folder for the OGIMET script.
+- `global_model_data/`: default CSV output folder for the global model script.
 - `Asset/Animation.gif`: visual guide for getting the Weather Underground API key.
 - `README.md`: usage documentation.
 
@@ -176,6 +178,49 @@ python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
 python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14 --output ogimet_data
 ```
 
+### 5. Global Model Script (Open-Meteo)
+
+This file is used to fetch global weather model data (GFS, ICON, ECMWF IFS/AIFS, GEM, ARPEGE, ACCESS-G, ERA5) from the Open-Meteo API.
+
+#### Show help
+
+```bash
+python inf_global_model.py -h
+```
+
+#### Batch mode (date range)
+
+```bash
+python inf_global_model.py --lat -6.98 --lon 110.41 --start 2025-04-01 --end 2025-04-30
+```
+
+#### Single date
+
+```bash
+python inf_global_model.py --lat -6.98 --lon 110.41 --date 2025-06-15
+```
+
+#### Realtime polling
+
+```bash
+python inf_global_model.py --lat -6.98 --lon 110.41 realtime
+```
+
+#### Custom output folder
+
+```bash
+python inf_global_model.py --lat -6.98 --lon 110.41 --date 2025-06-15 --output my_data
+```
+
+#### Notes
+
+- Output is stored as separate CSV files per model (e.g., `gfs.csv`, `icon.csv`, `ecmwf_ifs.csv`) inside the output folder (default: `global_model_data/`).
+- Deduplication: if data for the same datetime already exists in the CSV, it will not be written again.
+- Data in each CSV is always sorted chronologically.
+- Realtime mode respects each model's update frequency (e.g., ICON 8x/day, GFS 4x/day, ECMWF 2x/day) and only fetches when new data is expected.
+- The script retries up to 3 times with exponential backoff on network errors.
+- If one model fails, the script continues fetching the remaining models.
+
 ### How to Get the Weather Underground API Key
 
 1. Open the Weather Underground website.
@@ -215,6 +260,9 @@ python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE>
 python "Weather Undergound/wunderground_pws_scraper.py" --station <STATION_CODE> --start 2026-01-01 --end 2026-04-14 --auto-start
 python metar_OGIMET.py --icao <ICAO_CODE> --date 2026-04-14
 python metar_OGIMET.py --icao <ICAO_CODE> --start 2026-04-10 --end 2026-04-14
+python inf_global_model.py --lat <LAT> --lon <LON> --date 2025-06-15
+python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025-04-30
+python inf_global_model.py --lat <LAT> --lon <LON> realtime
 ```
 
 ## Example Columns in the Output
@@ -307,3 +355,4 @@ Some columns may be empty because they are not always reported in every METAR, e
 - NOAA is suitable for history and can also be used in real-time.
 - CheckWX in this project is used for decoded real-time monitoring.
 - OGIMET is suitable for batch/range history with daily CSV output.
+- Global Model (Open-Meteo) is suitable for NWP model data (GFS, ICON, ECMWF, etc.) with batch, single-date, or realtime polling modes.
