@@ -236,7 +236,7 @@ python inf_global_model.py --lat <LAT> --lon <LON> realtime --model gfs icon gem
 
 - Available models: `gfs`, `icon`, `ecmwf_ifs`, `gem`, `arpege`, `access_g`, `era5`.
 - If `--model` is not provided, all 7 models are fetched by default.
-- `--filter`: jika digunakan, data yang sudah ada di CSV tidak akan di-overwrite. Tanpa `--filter`, data lama akan diganti dengan data terbaru dari model run terbaru. Berguna di mode realtime karena model bisa menghasilkan data baru untuk jam yang sudah lewat.
+- `--filter`: when enabled, existing rows in the CSV are preserved and not overwritten by new rows. Without `--filter`, older rows can be replaced by data from the latest model run. This is useful in realtime mode when new model runs can update already-passed timestamps.
 
 - Output is stored as separate CSV files per model (e.g., `gfs.csv`, `icon.csv`, `ecmwf_ifs.csv`) inside the output folder (default: `global_model_data/`).
 - Deduplication: if data for the same datetime already exists in the CSV, it will not be written again.
@@ -259,6 +259,7 @@ Important notes:
 
 - One API key can be used for requests to more than one PWS as long as the access is valid.
 - If you want to switch PWS, just change the `--station` value in the command.
+- Realtime polling is display-only: data is shown in the terminal and is not saved into any file.
 - Date formats for `--date`, `--start`, and `--end` can be `YYYYMMDD` or `YYYY-MM-DD`.
 - Safe recommendation for `--request-delay` is `2.0` to `2.5` seconds (default `2.2`) so it stays below about 30 requests/minute.
 - The script already has auto retry + backoff for HTTP `429/5xx` and connection errors.

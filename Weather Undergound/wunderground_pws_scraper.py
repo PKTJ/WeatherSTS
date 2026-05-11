@@ -8,8 +8,8 @@ import random
 import re
 from datetime import datetime, timedelta
 import pandas as pd
-# ================== KONFIGURASI ==================
-API_KEY = "MASUKAN_API_KEY"    # Key dari Network tab
+# ================== CONFIGURATION ==================
+API_KEY = "ENTER_API_KEY"    # API key from the browser Network tab
 UNITS = "m"                    # m = metric
 
 HEADERS = {
@@ -19,14 +19,14 @@ HEADERS = {
     "Accept": "application/json"
 }
 
-DEFAULT_BATCH_DELAY = 2.2  # ~27 request/menit (aman di bawah 30 request/menit)
+DEFAULT_BATCH_DELAY = 2.2  # ~27 requests/minute (safe below 30 requests/minute)
 DEFAULT_BATCH_JITTER = 0.4
 MAX_RETRIES = 4
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 EMPTY_RESPONSE_STATUSES = {204}
 STATION_ID_PATTERN = re.compile(r"^[A-Z0-9]{4,24}$")
 
-# Fungsi format waktu seperti website (3:29 PM)
+# Time formatter matching website style (3:29 PM)
 def format_time(obs_time_local):
     if not obs_time_local:
         return ""
@@ -89,7 +89,7 @@ def build_retry_wait(attempt, retry_after_header=None):
         except ValueError:
             pass
 
-    # exponential backoff + jitter kecil agar pola request tidak terlalu seragam
+    # Exponential backoff + small jitter to avoid overly uniform request patterns.
     return min(30.0, (2 ** attempt) + random.uniform(0.2, 0.8))
 
 def compute_batch_wait(delay_seconds, jitter_seconds):
@@ -108,7 +108,7 @@ def create_auto_output_dir(base_name):
     folder_already_exists = os.path.isdir(preferred)
     os.makedirs(preferred, exist_ok=True)
     if folder_already_exists:
-        print(f"Folder {preferred} sudah ada. File dengan nama sama akan ditimpa.")
+        print(f"Folder {preferred} already exists. Files with the same name will be overwritten.")
     return preferred
 
 def resolve_output_dir(mode, date_str, end_date_str=None, station_id=None, manual_output_dir=None):
@@ -118,17 +118,17 @@ def resolve_output_dir(mode, date_str, end_date_str=None, station_id=None, manua
         return manual_output_dir
 
     if not station_id:
-        raise ValueError("Station ID tidak valid")
+        raise ValueError("Invalid station ID")
 
     start_date = parse_input_date(date_str)
     if not start_date:
-        raise ValueError("Tanggal mulai tidak valid")
+        raise ValueError("Invalid start date")
 
     start_token = start_date.strftime("%Y%m%d")
     if mode == "history_batch":
         end_date = parse_input_date(end_date_str or "")
         if not end_date:
-            raise ValueError("Tanggal akhir tidak valid")
+            raise ValueError("Invalid end date")
         end_token = end_date.strftime("%Y%m%d")
         base_name = f"pws_{station_id}_{start_token}_{end_token}"
     else:
@@ -157,37 +157,37 @@ def request_json_with_retry_status(url, date_str, label):
         except requests.RequestException as e:
             if attempt < MAX_RETRIES:
                 wait_s = build_retry_wait(attempt)
-                print(f"Request error ({label}): {e}. Retry {attempt + 1}/{MAX_RETRIES} dalam {wait_s:.1f}s...")
+                print(f"Request error ({label}): {e}. Retry {attempt + 1}/{MAX_RETRIES} in {wait_s:.1f}s...")
                 time.sleep(wait_s)
                 continue
 
-            print(f"Error request permanen ({label}): {e}")
+            print(f"Permanent request error ({label}): {e}")
             return None, None
 
         if resp.status_code == 200:
             try:
                 return resp.status_code, resp.json()
             except ValueError:
-                print(f"Response ({label}) untuk {date_str} bukan JSON valid")
+                print(f"Response ({label}) for {date_str} is not valid JSON")
                 return resp.status_code, None
 
         if resp.status_code in EMPTY_RESPONSE_STATUSES:
             print(
-                f"HTTP {resp.status_code} ({label}) untuk {date_str}: "
-                "tidak ada data (no content)."
+                f"HTTP {resp.status_code} ({label}) for {date_str}: "
+                "no data (no content)."
             )
             return resp.status_code, {"observations": []}
 
         if resp.status_code in RETRYABLE_STATUSES and attempt < MAX_RETRIES:
             wait_s = build_retry_wait(attempt, resp.headers.get("Retry-After"))
             print(
-                f"HTTP {resp.status_code} ({label}) untuk {date_str}. "
-                f"Retry {attempt + 1}/{MAX_RETRIES} dalam {wait_s:.1f}s..."
+                f"HTTP {resp.status_code} ({label}) for {date_str}. "
+                f"Retry {attempt + 1}/{MAX_RETRIES} in {wait_s:.1f}s..."
             )
             time.sleep(wait_s)
             continue
 
-        print(f"Error {resp.status_code} ({label}) untuk {date_str}")
+        print(f"Error {resp.status_code} ({label}) for {date_str}")
         return resp.status_code, None
 
     return None, None
@@ -203,12 +203,12 @@ def check_station_exists_on_dashboard(station_id):
                 wait_s = build_retry_wait(attempt)
                 print(
                     f"Dashboard check error: {e}. "
-                    f"Retry {attempt + 1}/{MAX_RETRIES} dalam {wait_s:.1f}s..."
+                    f"Retry {attempt + 1}/{MAX_RETRIES} in {wait_s:.1f}s..."
                 )
                 time.sleep(wait_s)
                 continue
 
-            print(f"Dashboard check gagal permanen: {e}")
+            print(f"Dashboard check permanently failed: {e}")
             return None
 
         body_lower = (resp.text or "").lower()
@@ -224,12 +224,12 @@ def check_station_exists_on_dashboard(station_id):
             wait_s = build_retry_wait(attempt, resp.headers.get("Retry-After"))
             print(
                 f"Dashboard check HTTP {resp.status_code}. "
-                f"Retry {attempt + 1}/{MAX_RETRIES} dalam {wait_s:.1f}s..."
+                f"Retry {attempt + 1}/{MAX_RETRIES} in {wait_s:.1f}s..."
             )
             time.sleep(wait_s)
             continue
 
-        print(f"Dashboard check status {resp.status_code}; tidak bisa memastikan station.")
+        print(f"Dashboard check status {resp.status_code}; station could not be confirmed.")
         return None
 
     return None
@@ -266,8 +266,8 @@ def collect_observation_dates(data, start_date=None, end_date=None):
 
 def fallback_scan_window_daily(window_start, window_end, global_start, global_end, station_id):
     print(
-        f"Fallback cek harian untuk window "
-        f"{window_start.strftime('%Y-%m-%d')} s/d {window_end.strftime('%Y-%m-%d')}"
+        f"Fallback daily check for window "
+        f"{window_start.strftime('%Y-%m-%d')} to {window_end.strftime('%Y-%m-%d')}"
     )
 
     unresolved_dates = []
@@ -292,8 +292,8 @@ def fallback_scan_window_daily(window_start, window_end, global_start, global_en
 
 def find_first_available_date(start_date, end_date, station_id):
     print(
-        f"Auto-start aktif: mencari tanggal pertama yang punya data dari "
-        f"{start_date.strftime('%Y-%m-%d')} sampai {end_date.strftime('%Y-%m-%d')}"
+        f"Auto-start enabled: searching for first date with data from "
+        f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
     )
 
     current_start = start_date
@@ -302,7 +302,7 @@ def find_first_available_date(start_date, end_date, station_id):
         start_token = current_start.strftime("%Y%m%d")
         end_token = current_end.strftime("%Y%m%d")
 
-        print(f"Scan window {start_token} s/d {end_token}...")
+        print(f"Scan window {start_token} to {end_token}...")
         url_daily = (
             "https://api.weather.com/v2/pws/history/daily"
             f"?stationId={station_id}&format=json&units={UNITS}"
@@ -311,7 +311,7 @@ def find_first_available_date(start_date, end_date, station_id):
 
         data = request_json_with_retry(url_daily, start_token, "discovery/daily")
         if data is None:
-            print("Scan window gagal. Menjalankan fallback cek harian...")
+            print("Window scan failed. Running fallback daily check...")
             first_date, unresolved_dates = fallback_scan_window_daily(
                 current_start,
                 current_end,
@@ -320,32 +320,32 @@ def find_first_available_date(start_date, end_date, station_id):
                 station_id,
             )
             if first_date:
-                print(f"Tanggal pertama dengan data ditemukan: {first_date.strftime('%Y-%m-%d')}")
+                print(f"First date with data found: {first_date.strftime('%Y-%m-%d')}")
                 return first_date
 
             if unresolved_dates:
                 preview = ", ".join(unresolved_dates[:10])
                 if len(unresolved_dates) > 10:
                     preview += ", ..."
-                print(f"Fallback harian masih gagal di tanggal: {preview}")
-                print("Untuk menjaga kepastian data, proses auto-start dihentikan.")
+                print(f"Fallback daily check still failed on dates: {preview}")
+                print("To maintain data certainty, auto-start has been stopped.")
                 return None
         else:
             obs_dates = collect_observation_dates(data, start_date, end_date)
             if obs_dates:
                 first_date = min(obs_dates)
-                print(f"Tanggal pertama dengan data ditemukan: {first_date.strftime('%Y-%m-%d')}")
+                print(f"First date with data found: {first_date.strftime('%Y-%m-%d')}")
                 return first_date
 
         current_start = current_end + timedelta(days=1)
 
-    print("Tidak ditemukan data dalam rentang tanggal yang diminta.")
+    print("No data found in the requested date range.")
     return None
 
 # =======================================================
 
 def fetch_history(date_str: str, station_id: str):
-    print(f"Mengambil data historis tanggal {date_str}...")
+    print(f"Fetching historical data for date {date_str}...")
     url_all = f"https://api.weather.com/v2/pws/history/all?stationId={station_id}&format=json&units={UNITS}&date={date_str}&apiKey={API_KEY}"
     data = request_json_with_retry(url_all, date_str, "history/all")
     if data is None:
@@ -354,10 +354,10 @@ def fetch_history(date_str: str, station_id: str):
     observations = data.get("observations", [])
     obs_count = len(observations)
     if obs_count > 0:
-        print(f"Berhasil! Total {obs_count} record")
+        print(f"Success! Total {obs_count} records")
         return data
 
-    print("Observations kosong dari endpoint history/all, mencoba fallback history/hourly...")
+    print("No observations from history/all endpoint, trying history/hourly fallback...")
     url_hourly = (
         "https://api.weather.com/v2/pws/history/hourly"
         f"?stationId={station_id}&format=json&units={UNITS}"
@@ -365,15 +365,15 @@ def fetch_history(date_str: str, station_id: str):
     )
     fallback_data = request_json_with_retry(url_hourly, date_str, "history/hourly")
     if fallback_data is None:
-        print("Fallback history/hourly gagal. Data harian dianggap kosong.")
+        print("history/hourly fallback failed. Daily data is treated as empty.")
         return data
 
     fallback_obs_count = len(fallback_data.get("observations", []))
     if fallback_obs_count > 0:
-        print(f"Fallback berhasil! Total {fallback_obs_count} record")
+        print(f"Fallback success! Total {fallback_obs_count} records")
         return fallback_data
 
-    print("Fallback history/hourly juga kosong.")
+    print("history/hourly fallback is also empty.")
     return fallback_data
 
 def update_final_pws_csv(new_csv_path, final_csv_path):
@@ -382,7 +382,7 @@ def update_final_pws_csv(new_csv_path, final_csv_path):
     try:
         new_df = pd.read_csv(new_csv_path)
     except Exception as e:
-        print(f"Gagal membaca {new_csv_path}: {e}")
+        print(f"Failed to read {new_csv_path}: {e}")
         return
 
     if new_df.empty:
@@ -397,40 +397,40 @@ def update_final_pws_csv(new_csv_path, final_csv_path):
                 combined['Time_dt'] = pd.to_datetime(combined['Time'], format='%m/%d/%Y %H:%M', errors='coerce')
                 combined = combined.sort_values('Time_dt').drop(columns=['Time_dt'])
             combined.to_csv(final_csv_path, index=False)
-            print(f"  -> Update file gabungan: {final_csv_path} (Total {len(combined)} record)")
+            print(f"  -> Updated merged file: {final_csv_path} (Total {len(combined)} records)")
         except Exception as e:
-            print(f"  -> Gagal update gabungan {final_csv_path}: {e}")
+            print(f"  -> Failed to update merged file {final_csv_path}: {e}")
     else:
         if 'Time' in new_df.columns:
             new_df['Time_dt'] = pd.to_datetime(new_df['Time'], format='%m/%d/%Y %H:%M', errors='coerce')
             new_df = new_df.sort_values('Time_dt').drop(columns=['Time_dt'])
         new_df.to_csv(final_csv_path, index=False)
-        print(f"  -> Dibuat file gabungan baru: {final_csv_path} ({len(new_df)} record)")
+        print(f"  -> Created new merged file: {final_csv_path} ({len(new_df)} records)")
 
 def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_seconds, output_dir, station_id, manual_output_dir=None):
     start_date = parse_input_date(start_date_str)
     end_date = parse_input_date(end_date_str)
 
     if not start_date or not end_date:
-        print("Format tanggal tidak valid. Gunakan YYYYMMDD atau YYYY-MM-DD")
+        print("Invalid date format. Use YYYYMMDD or YYYY-MM-DD")
         return
 
     if end_date < start_date:
-        print("Tanggal akhir tidak boleh lebih kecil dari tanggal mulai")
+        print("End date cannot be earlier than start date")
         return
 
     today = datetime.now().date()
     if start_date > today:
         print(
-            f"Tanggal mulai {start_date.strftime('%Y-%m-%d')} berada di masa depan. "
-            "Tidak ada data historis untuk diproses."
+            f"Start date {start_date.strftime('%Y-%m-%d')} is in the future. "
+            "No historical data to process."
         )
         return
 
     if end_date > today:
         print(
-            f"Tanggal akhir {end_date.strftime('%Y-%m-%d')} berada di masa depan, "
-            f"disesuaikan menjadi {today.strftime('%Y-%m-%d')}"
+            f"End date {end_date.strftime('%Y-%m-%d')} is in the future, "
+            f"adjusted to {today.strftime('%Y-%m-%d')}"
         )
         end_date = today
 
@@ -450,12 +450,12 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
     total_days = (end_date - start_date).days + 1
 
     print(
-        f"Mulai batch history {start_date.strftime('%Y-%m-%d')} s/d {end_date.strftime('%Y-%m-%d')} "
-        f"({total_days} hari)"
+        f"Starting batch history {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')} "
+        f"({total_days} days)"
     )
     print(
-        f"Throttle: delay dasar {delay_seconds:.2f}s, jitter +/- {jitter_seconds:.2f}s "
-        f"(rekomendasi aman untuk menghindari spam)"
+        f"Throttle: base delay {delay_seconds:.2f}s, jitter +/- {jitter_seconds:.2f}s "
+        f"(safe recommendation to avoid spamming)"
     )
 
     success_days = 0
@@ -465,7 +465,7 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
 
     for idx, current_date in enumerate(iter_dates(start_date, end_date), start=1):
         date_str = current_date.strftime("%Y%m%d")
-        print(f"[{idx}/{total_days}] Proses {date_str}")
+        print(f"[{idx}/{total_days}] Processing {date_str}")
 
         data = fetch_history(date_str, station_id)
         if data is None:
@@ -484,53 +484,53 @@ def run_history_batch(start_date_str, end_date_str, delay_seconds, jitter_second
                 days_with_data += 1
             else:
                 empty_days.append(date_str)
-                print(f"Data kosong untuk {date_str} (observations=[]). JSON tetap disimpan.")
+                print(f"Empty data for {date_str} (observations=[]). JSON was still saved.")
 
             success_days += 1
 
         if idx < total_days:
             sleep_seconds = compute_batch_wait(delay_seconds, jitter_seconds)
-            print(f"Tunggu {sleep_seconds:.2f}s sebelum request berikutnya...")
+            print(f"Waiting {sleep_seconds:.2f}s before the next request...")
             time.sleep(sleep_seconds)
 
-    print("\n===== RINGKASAN BATCH =====")
-    print(f"Total hari diproses : {total_days}")
-    print(f"Sukses request      : {success_days}")
-    print(f"Ada data            : {days_with_data}")
-    print(f"Kosong              : {len(empty_days)}")
-    print(f"Gagal               : {len(failed_days)}")
+    print("\n===== BATCH SUMMARY =====")
+    print(f"Total days processed: {total_days}")
+    print(f"Successful requests : {success_days}")
+    print(f"Days with data      : {days_with_data}")
+    print(f"Empty days          : {len(empty_days)}")
+    print(f"Failed days         : {len(failed_days)}")
 
     if os.path.exists(merged_csv):
-        print(f"CSV gabungan        : {merged_csv}")
+        print(f"Merged CSV          : {merged_csv}")
     else:
-        print("CSV gabungan        : tidak dibuat (tidak ada observations)")
+        print("Merged CSV          : not created (no observations)")
 
-    print(f"Folder JSON         : {json_dir}")
-    print(f"Folder CSV          : {csv_dir}")
+    print(f"JSON folder         : {json_dir}")
+    print(f"CSV folder          : {csv_dir}")
 
     if failed_days:
-        print("Tanggal gagal       : " + ", ".join(failed_days))
+        print("Failed dates        : " + ", ".join(failed_days))
 
     if empty_days:
-        print("Tanggal kosong      : " + ", ".join(empty_days))
+        print("Empty dates         : " + ", ".join(empty_days))
 
 def fetch_current(station_id):
     url = f"https://api.weather.com/v2/pws/observations/current?stationId={station_id}&format=json&units={UNITS}&apiKey={API_KEY}"
     resp = requests.get(url, headers=HEADERS, timeout=20)
     if resp.status_code != 200:
-        print(f"Error {resp.status_code} saat ambil data live")
+        print(f"Error {resp.status_code} while fetching live data")
         return None
     return resp.json()
 
 def normalize_station_id(raw_station):
     station_id = (raw_station or "").strip().upper()
     if not station_id:
-        raise ValueError("--station wajib diisi")
+        raise ValueError("--station is required")
 
     if not STATION_ID_PATTERN.fullmatch(station_id):
         raise ValueError(
-            "Format --station tidak valid. Gunakan huruf/angka tanpa spasi, "
-            "contoh: ISINGA249"
+            "Invalid --station format. Use letters/numbers without spaces, "
+            "example: ISINGA249"
         )
 
     return station_id
@@ -539,13 +539,13 @@ def validate_station_id(station_id):
     dashboard_exists = check_station_exists_on_dashboard(station_id)
     if dashboard_exists is False:
         print(
-            f"Station {station_id} tidak ditemukan di dashboard Weather Underground (404). "
-            "Kemungkinan typo station ID."
+            f"Station {station_id} was not found on the Weather Underground dashboard (404). "
+            "Possible station ID typo."
         )
         return False
 
     if dashboard_exists is True:
-        print(f"Station {station_id} ditemukan di dashboard Weather Underground.")
+        print(f"Station {station_id} was found on the Weather Underground dashboard.")
 
     today_token = datetime.now().strftime("%Y%m%d")
     yesterday_token = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
@@ -577,10 +577,10 @@ def validate_station_id(station_id):
         if status_code == 200 and data is not None:
             observations = data.get("observations", []) if isinstance(data, dict) else []
             if observations:
-                print(f"Station {station_id} terverifikasi ({label}, {len(observations)} record).")
+                print(f"Station {station_id} verified ({label}, {len(observations)} records).")
                 return True
 
-            print(f"Probe {label} sukses tetapi observations kosong.")
+            print(f"Probe {label} succeeded but observations are empty.")
             saw_empty_response = True
             continue
 
@@ -590,25 +590,25 @@ def validate_station_id(station_id):
 
         if status_code in {401, 403}:
             print(
-                f"Station {station_id} gagal diverifikasi karena API key tidak punya akses "
+                f"Station {station_id} could not be verified because the API key has no access "
                 f"(HTTP {status_code})."
             )
             return False
 
         if status_code == 404:
-            print(f"Station {station_id} tidak ditemukan oleh endpoint API ({label}).")
+            print(f"Station {station_id} was not found by API endpoint ({label}).")
             return False
 
     if dashboard_exists is True and saw_empty_response:
         print(
-            f"Station {station_id} valid, tetapi data saat ini kosong. "
-            "Proses tetap diizinkan."
+            f"Station {station_id} is valid, but current data is empty. "
+            "Process is still allowed."
         )
         return True
 
     print(
-        f"Station {station_id} tidak terverifikasi. "
-        "Cek kemungkinan typo station ID atau akses station pada akun Anda."
+        f"Station {station_id} is not verified. "
+        "Check for a station ID typo or account access to that station."
     )
     return False
 
@@ -717,16 +717,16 @@ def save_to_csv(observations, filename, mode="a"):
 
 def main():
     parser = argparse.ArgumentParser(description="Weather Underground PWS Scraper")
-    parser.add_argument("--station", required=True, help="Station ID PWS, contoh: ISINGA249")
-    parser.add_argument("today", nargs="?", choices=["today"], help="Keyword mode hari ini")
-    parser.add_argument("--date", type=str, help="Tanggal history (YYYYMMDD atau YYYY-MM-DD)")
-    parser.add_argument("--start", type=str, help="Tanggal mulai batch (YYYYMMDD atau YYYY-MM-DD)")
-    parser.add_argument("--end", type=str, help="Tanggal akhir batch (YYYYMMDD atau YYYY-MM-DD)")
-    parser.add_argument("--auto-start", action="store_true", help="Mode batch: cari otomatis tanggal pertama yang punya data")
-    parser.add_argument("--interval", type=int, help="Interval polling realtime (detik), hanya untuk mode today realtime")
-    parser.add_argument("--request-delay", type=float, default=DEFAULT_BATCH_DELAY, help="Delay dasar antar request batch (detik)")
-    parser.add_argument("--request-jitter", type=float, default=DEFAULT_BATCH_JITTER, help="Jitter random delay batch (detik)")
-    parser.add_argument("--output-dir", type=str, help="Opsional: folder output manual (jika tidak diisi, dibuat folder otomatis)")
+    parser.add_argument("--station", required=True, help="PWS station ID, example: ISINGA249")
+    parser.add_argument("today", nargs="?", choices=["today"], help="Today mode keyword")
+    parser.add_argument("--date", type=str, help="History date (YYYYMMDD or YYYY-MM-DD)")
+    parser.add_argument("--start", type=str, help="Batch start date (YYYYMMDD or YYYY-MM-DD)")
+    parser.add_argument("--end", type=str, help="Batch end date (YYYYMMDD or YYYY-MM-DD)")
+    parser.add_argument("--auto-start", action="store_true", help="Batch mode: automatically find first date with available data")
+    parser.add_argument("--interval", type=int, help="Realtime polling interval (seconds), only for today realtime mode")
+    parser.add_argument("--request-delay", type=float, default=DEFAULT_BATCH_DELAY, help="Base delay between batch requests (seconds)")
+    parser.add_argument("--request-jitter", type=float, default=DEFAULT_BATCH_JITTER, help="Randomized batch delay jitter (seconds)")
+    parser.add_argument("--output-dir", type=str, help="Optional manual output folder (if omitted, auto-generated folder is used)")
     args = parser.parse_args()
 
     try:
@@ -738,13 +738,13 @@ def main():
         raise SystemExit(1)
 
     if args.request_delay < 0:
-        parser.error("--request-delay tidak boleh negatif")
+        parser.error("--request-delay cannot be negative")
 
     if args.request_jitter < 0:
-        parser.error("--request-jitter tidak boleh negatif")
+        parser.error("--request-jitter cannot be negative")
 
     if args.interval is not None and args.interval <= 0:
-        parser.error("--interval harus lebih besar dari 0")
+        parser.error("--interval must be greater than 0")
 
     has_today = args.today == "today"
     has_date = bool(args.date)
@@ -752,38 +752,38 @@ def main():
     has_end = bool(args.end)
 
     if has_date and has_today:
-        parser.error("Gunakan salah satu: --date atau keyword today")
+        parser.error("Use one of: --date or today keyword")
 
     if has_start != has_end:
-        parser.error("Mode batch wajib isi --start dan --end sekaligus")
+        parser.error("Batch mode requires both --start and --end")
 
     if has_start and (has_date or has_today):
-        parser.error("Mode batch (--start/--end) tidak bisa digabung dengan --date atau today")
+        parser.error("Batch mode (--start/--end) cannot be combined with --date or today")
 
     if args.interval is not None and not has_today:
-        parser.error("--interval hanya bisa dipakai bersama keyword today")
+        parser.error("--interval can only be used with today keyword")
 
     if has_start and has_end:
         input_start = parse_input_date(args.start)
         input_end = parse_input_date(args.end)
         if not input_start or not input_end:
-            parser.error("Format --start/--end tidak valid. Gunakan YYYYMMDD atau YYYY-MM-DD")
+            parser.error("Invalid --start/--end format. Use YYYYMMDD or YYYY-MM-DD")
 
         if input_end < input_start:
-            parser.error("Nilai --end tidak boleh lebih kecil dari --start")
+            parser.error("--end cannot be earlier than --start")
 
         today = datetime.now().date()
         if input_start > today:
             print(
-                f"Tanggal mulai {input_start.strftime('%Y-%m-%d')} berada di masa depan. "
-                "Tidak ada data historis untuk diproses."
+                f"Start date {input_start.strftime('%Y-%m-%d')} is in the future. "
+                "No historical data to process."
             )
             return
 
         if input_end > today:
             print(
-                f"Tanggal akhir {input_end.strftime('%Y-%m-%d')} berada di masa depan, "
-                f"disesuaikan menjadi {today.strftime('%Y-%m-%d')}"
+                f"End date {input_end.strftime('%Y-%m-%d')} is in the future, "
+                f"adjusted to {today.strftime('%Y-%m-%d')}"
             )
             input_end = today
 
@@ -791,13 +791,13 @@ def main():
         if args.auto_start:
             discovered_start = find_first_available_date(input_start, input_end, station_id)
             if not discovered_start:
-                print("Batch dibatalkan karena tidak ada data di rentang tanggal tersebut.")
+                print("Batch canceled because there is no data in that date range.")
                 return
 
             if discovered_start > input_start:
                 print(
-                    f"Tanggal mulai digeser otomatis dari {input_start.strftime('%Y-%m-%d')} "
-                    f"ke {discovered_start.strftime('%Y-%m-%d')}"
+                    f"Start date automatically shifted from {input_start.strftime('%Y-%m-%d')} "
+                    f"to {discovered_start.strftime('%Y-%m-%d')}"
                 )
             effective_start = discovered_start
 
@@ -806,8 +806,8 @@ def main():
 
         if args.request_delay < 1.8:
             print(
-                "Peringatan: --request-delay < 1.8 detik berisiko kena rate limit. "
-                "Rekomendasi aman 2.0 - 2.5 detik"
+                "Warning: --request-delay < 1.8 seconds increases rate-limit risk. "
+                "Safe recommendation is 2.0 - 2.5 seconds"
             )
 
         output_dir = resolve_output_dir(
@@ -833,19 +833,19 @@ def main():
         if has_date:
             parsed_history_date = parse_input_date(args.date)
             if not parsed_history_date:
-                parser.error("Format --date tidak valid. Gunakan YYYYMMDD atau YYYY-MM-DD")
+                parser.error("Invalid --date format. Use YYYYMMDD or YYYY-MM-DD")
         else:
             parsed_history_date = datetime.now().date()
 
         if parsed_history_date > datetime.now().date():
             print(
-                f"Tanggal {parsed_history_date.strftime('%Y-%m-%d')} berada di masa depan. "
-                "Gunakan tanggal <= hari ini."
+                f"Date {parsed_history_date.strftime('%Y-%m-%d')} is in the future. "
+                "Use a date <= today."
             )
             return
 
         if has_today and args.interval is not None:
-            print(f"Polling live station {station_id} setiap {args.interval} detik... (Ctrl+C untuk stop)")
+            print(f"Polling live station {station_id} every {args.interval} seconds... (Ctrl+C to stop)")
             if args.output_dir:
                 os.makedirs(args.output_dir, exist_ok=True)
                 csv_file = os.path.join(args.output_dir, f"pws_{station_id}_live.csv")
@@ -862,7 +862,7 @@ def main():
 
                     obs = data.get("observations", [])
                     if not obs:
-                        print("Tidak ada observations di response live")
+                        print("No observations in live response")
                         time.sleep(args.interval)
                         continue
 
@@ -870,7 +870,7 @@ def main():
                     ts = latest.get("epoch")
 
                     if ts == last_ts:
-                        print("Belum ada data baru")
+                        print("No new data yet")
                     else:
                         row = build_row_from_observation(latest)
                         print_poll_row(row)
@@ -879,7 +879,7 @@ def main():
 
                     time.sleep(args.interval)
                 except KeyboardInterrupt:
-                    print("\nDihentikan.")
+                    print("\nStopped.")
                     break
                 except Exception as e:
                     print(f"Error polling: {e}")
@@ -910,13 +910,13 @@ def main():
                 merged_csv = os.path.join(final_dir, f"pws_{station_id}_final.csv")
                 update_final_pws_csv(csv_path, merged_csv)
                 
-                print(f"Selesai! File CSV & JSON sudah siap: {csv_path}")
+                print(f"Done! CSV & JSON files are ready: {csv_path}")
                 print(f"File JSON            : {json_path}")
             else:
-                print(f"Response sukses tapi observations kosong. File JSON disimpan di: {json_path}")
+                print(f"Successful response but observations are empty. JSON saved at: {json_path}")
         return
 
-    parser.error("Gunakan salah satu mode: --date <tanggal>, today, atau --start <tanggal> --end <tanggal>")
+    parser.error("Use one mode: --date <date>, today, or --start <date> --end <date>")
 
 
 if __name__ == "__main__":

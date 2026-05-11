@@ -48,14 +48,14 @@ def color_text(text, color):
     return f"{color}{text}{RESET}"
 
 def get_field(metar, *keys):
-    """Ambil field pertama yang tersedia dari beberapa kandidat key."""
+    """Return the first available field from multiple candidate keys."""
     for key in keys:
         if key in metar and metar[key] is not None:
             return metar[key]
     return None
 
 def get_observation_datetime(metar):
-    """Normalisasi waktu observasi dari berbagai format API (lama/baru)."""
+    """Normalize observation time from multiple API formats (legacy/current)."""
     time_str = get_field(metar, "observation_time", "reportTime", "receiptTime")
     if isinstance(time_str, str):
         try:
@@ -70,7 +70,7 @@ def get_observation_datetime(metar):
     return None
 
 def fetch_metar(icao, hours=None):
-    """Fetch METAR dari NOAA API"""
+    """Fetch METAR data from the NOAA API."""
     params = {
         "ids": icao,
         "format": "json"
@@ -83,7 +83,7 @@ def fetch_metar(icao, hours=None):
         response.raise_for_status()
         data = response.json()
         
-        # Struktur JSON NOAA kadang list langsung, kadang di dalam 'data'
+        # NOAA JSON can be either a direct list or nested under 'data'.
         if isinstance(data, list):
             return data
         elif isinstance(data, dict) and "data" in data:
@@ -95,7 +95,7 @@ def fetch_metar(icao, hours=None):
         return []
 
 def get_station_latlon(icao):
-    """Ambil lat/lon stasiun dari ICAO."""
+    """Get station lat/lon from ICAO."""
     try:
         response = requests.get(
             STATION_INFO_URL,
@@ -117,7 +117,7 @@ def get_station_latlon(icao):
 
 
 def get_station_metadata(icao):
-    """Ambil metadata stasiun: latitude, longitude, elevation."""
+    """Get station metadata: latitude, longitude, elevation."""
     try:
         response = requests.get(
             STATION_INFO_URL,
@@ -140,7 +140,7 @@ def get_station_metadata(icao):
         return {"latitude": None, "longitude": None, "elevation_m": None}
 
 def resolve_station_timezone(icao):
-    """Deteksi timezone stasiun berdasarkan koordinat ICAO."""
+    """Detect station timezone from ICAO coordinates."""
     lat, lon = get_station_latlon(icao)
     if lat is None or lon is None:
         return "UTC"
@@ -167,7 +167,7 @@ def resolve_station_timezone(icao):
     return "UTC"
 
 def is_speci(metar):
-    """Deteksi SPECI atau METAR"""
+    """Detect whether the report is SPECI or METAR."""
     raw = get_field(metar, "raw_text", "rawOb") or ""
     if raw.startswith("SPECI"):
         return "SPECI"
@@ -178,7 +178,7 @@ def is_speci(metar):
 
 
 def extract_cloud_layers(metar):
-    """Normalisasi cloud layers ke format METAR ringkas (mis. FEW016 BKN300)."""
+    """Normalize cloud layers to compact METAR format (e.g., FEW016 BKN300)."""
     layers = get_field(metar, "sky_condition", "skyCondition", "clouds", "cloudLayers")
     if not isinstance(layers, list):
         return ""
@@ -205,7 +205,7 @@ def extract_cloud_layers(metar):
         if base_raw is not None:
             try:
                 base_ft = int(float(base_raw))
-                # METAR cloud base ditulis dalam ratusan feet, 3 digit.
+                # METAR cloud base is encoded in hundreds of feet, 3 digits.
                 base_code = f"{base_ft // 100:03d}"
             except (ValueError, TypeError):
                 base_code = str(base_raw)
@@ -333,7 +333,7 @@ def append_live_row(metar, filename, station_timezone="UTC", station_metadata=No
 
 
 def read_last_live_record_key(filename):
-    """Ambil record terakhir dari file live agar restart tidak langsung double record."""
+    """Read the last live record so restart does not immediately duplicate entries."""
     if not os.path.exists(filename):
         return None
 
@@ -354,9 +354,9 @@ def read_last_live_record_key(filename):
         return None
 
 def save_to_csv(metars, filename, station_timezone="UTC", station_metadata=None):
-    """Simpan history ke CSV"""
+    """Save history rows to CSV."""
     if not metars:
-        print(color_text("Tidak ada data untuk disimpan.", YELLOW))
+        print(color_text("No data to save.", YELLOW))
         return
 
     station_metadata = station_metadata or {}
@@ -371,27 +371,27 @@ def save_to_csv(metars, filename, station_timezone="UTC", station_metadata=None)
         writer.writeheader()
         for m in metars:
             writer.writerow(build_csv_row(m, tzinfo, station_metadata))
-    print(color_text(f"Data berhasil disimpan ke: {filename}", GREEN))
+    print(color_text(f"Data successfully saved to: {filename}", GREEN))
 
 def history_mode(icao, target_date=None):
-    """Mode 1 & 2: Ambil history"""
+    """Modes 1 and 2: fetch historical data."""
     now = datetime.now(timezone.utc)
     
-    if target_date is None:  # Hari ini
-        hours = 48  # aman untuk cover 24 jam + buffer
+    if target_date is None:  # Today
+        hours = 48  # Safe window for 24h coverage plus buffer.
         date_str = now.strftime("%Y-%m-%d")
-        print(f"Mengambil data METAR {icao} untuk hari ini ({date_str})...")
+        print(f"Fetching METAR data for {icao} for today ({date_str})...")
     else:
         target = datetime.strptime(target_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         hours = int((now - target).total_seconds() / 3600) + 24  # buffer
-        if hours > 360:  # batas NOAA ~15 hari
+        if hours > 360:  # NOAA limit is around 15 days.
             hours = 360
         date_str = target_date
-        print(f"Mengambil data METAR {icao} untuk tanggal {date_str}...")
+        print(f"Fetching METAR data for {icao} for date {date_str}...")
 
     metars = fetch_metar(icao, hours=hours)
     
-    # Filter sesuai tanggal yang diminta
+    # Filter to the requested date.
     filtered = []
     for m in metars:
         obs_dt = get_observation_datetime(m)
@@ -404,40 +404,45 @@ def history_mode(icao, target_date=None):
         filename = f"{icao}_{date_str.replace('-', '')}.csv"
         station_timezone = resolve_station_timezone(icao)
         station_metadata = get_station_metadata(icao)
-        print(color_text(f"Timezone stasiun {icao}: {station_timezone}", YELLOW))
+        print(color_text(f"Station timezone for {icao}: {station_timezone}", YELLOW))
         save_to_csv(
             filtered,
             filename,
             station_timezone=station_timezone,
             station_metadata=station_metadata,
         )
-        print(f"Total data: {len(filtered)} record")
+        print(f"Total data: {len(filtered)} records")
     else:
-        print(color_text("Tidak ada data ditemukan untuk tanggal tersebut.", RED))
+        print(color_text("No data found for that date.", RED))
 
 def realtime_mode(icao):
-    """Mode 3: Real-time monitoring (jalan terus + rekam live ke CSV)."""
-    print(f"Mode Real-time {icao} aktif. Polling setiap 5 menit...")
-    print("Tekan Ctrl+C untuk stop.\n")
+    """Mode 3: realtime monitoring (continuous + live CSV logging)."""
+    print(f"Realtime mode for {icao} is active. Polling every 5 minutes...")
+    print("Press Ctrl+C to stop.\n")
 
     station_timezone = resolve_station_timezone(icao)
     station_metadata = get_station_metadata(icao)
     live_filename = f"{icao}_live.csv"
-    print(color_text(f"Timezone stasiun {icao}: {station_timezone}", YELLOW))
+    print(color_text(f"Station timezone for {icao}: {station_timezone}", YELLOW))
     print(color_text(f"File live: {live_filename}", YELLOW))
 
-    # Pakai record terakhir yang sudah ada agar restart tidak menulis ulang data sama.
+    try:
+        tzinfo = ZoneInfo(station_timezone)
+    except Exception:
+        tzinfo = timezone.utc
+
+    # Use the last stored record so restart does not rewrite the same data.
     last_record_key = read_last_live_record_key(live_filename)
     
     while True:
         try:
             metars = fetch_metar(icao)  # latest only
             if not metars:
-                print(color_text("Tidak ada data dari server", YELLOW))
+                print(color_text("No data from server", YELLOW))
                 time.sleep(300)
                 continue
 
-            latest = metars[0]  # data paling baru
+            latest = metars[0]  # newest data
             raw_text = get_field(latest, "raw_text", "rawOb") or ""
             obs_dt = get_observation_datetime(latest)
             local_time = obs_dt.astimezone(tzinfo).strftime("%Y-%m-%d %H:%M:%S") if obs_dt else "-"
@@ -450,7 +455,7 @@ def realtime_mode(icao):
             visibility = get_field(latest, "visibility", "visib")
             pressure_mb = get_field(latest, "altim_in_mb", "pressure_mb", "altim")
 
-            # Tampilkan dan simpan hanya jika data observasi berubah.
+            # Print and save only when observation data changes.
             if record_key != last_record_key:
                 print(color_text("=" * 80, GREEN))
                 print(color_text(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}", GREEN))
@@ -471,34 +476,34 @@ def realtime_mode(icao):
                     station_timezone=station_timezone,
                     station_metadata=station_metadata,
                 )
-                print(color_text(f"Record live tersimpan ke {live_filename}", GREEN))
+                print(color_text(f"Live record saved to {live_filename}", GREEN))
 
                 last_record_key = record_key
             else:
-                print(color_text(f"[{datetime.now().strftime('%H:%M:%S')}] Tidak ada perubahan data...", YELLOW))
+                print(color_text(f"[{datetime.now().strftime('%H:%M:%S')}] No data changes...", YELLOW))
 
         except KeyboardInterrupt:
-            print(color_text("\nReal-time monitoring dihentikan.", YELLOW))
+            print(color_text("\nRealtime monitoring stopped.", YELLOW))
             break
         except Exception as e:
             print(color_text(f"Error: {e}", RED))
 
-        time.sleep(300)  # 5 menit
+        time.sleep(300)  # 5 minutes
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="METAR NOAA Scraper")
-    parser.add_argument("--icao", required=True, help="Kode ICAO 4 karakter (contoh: WSSS)")
-    subparsers = parser.add_subparsers(dest="mode", help="Pilih mode")
+    parser.add_argument("--icao", required=True, help="4-character ICAO code (example: WSSS)")
+    subparsers = parser.add_subparsers(dest="mode", help="Select mode")
 
-    # History hari ini
-    today_parser = subparsers.add_parser("today", help="Ambil history hari ini")
+    # Today history
+    today_parser = subparsers.add_parser("today", help="Fetch today's history")
     
-    # History tanggal tertentu
-    date_parser = subparsers.add_parser("history", help="Ambil history tanggal tertentu")
-    date_parser.add_argument("--date", required=True, help="Format: YYYY-MM-DD (contoh: 2026-03-31)")
+    # Specific-date history
+    date_parser = subparsers.add_parser("history", help="Fetch history for a specific date")
+    date_parser.add_argument("--date", required=True, help="Format: YYYY-MM-DD (example: 2026-03-31)")
 
-    # Real-time
-    realtime_parser = subparsers.add_parser("realtime", help="Mode monitoring real-time")
+    # Realtime
+    realtime_parser = subparsers.add_parser("realtime", help="Realtime monitoring mode")
 
     args = parser.parse_args()
     icao = args.icao.strip().upper()
@@ -512,7 +517,7 @@ if __name__ == "__main__":
     else:
         parser.print_help()
 
-# Sumber data ini diambil dari NOAA jadi: 
-# Kode sumber ini sebaiknya digunakan hanya untuk bandara yang berada di amerika serikat
-# Banyak bandara eropa yang terkadang memiliki delay dan tidak stabil untuk update data real-tim
-# Beberapa bandara di asia juga terkadang mengalami masalah serupa, jadi pastikan untuk melakukan testing terlebih dahulu sebelum digunakan untuk monitoring real-time.
+# Data source note (NOAA):
+# This source works best for airports in the United States.
+# Some airports in Europe may have delayed or unstable realtime updates.
+# Similar issues can also occur at some airports in Asia, so test before production monitoring.

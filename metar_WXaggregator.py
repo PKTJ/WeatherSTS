@@ -15,10 +15,10 @@ RESET = "\033[0m"
 def color_text(text, color):
     return f"{color}{text}{RESET}"
 
-# ================== KONFIGURASI ==================
-API_KEY = "MASUKAN_API_KEY" # Ganti dengan API Key CheckWX 
+# ================== CONFIGURATION ==================
+API_KEY = "ENTER_API_KEY"  # Replace with your CheckWX API key.
 
-# Interval polling (detik). 300 = 5 menit
+# Polling interval (seconds). 300 = 5 minutes.
 DEFAULT_POLL_INTERVAL = 300
 
 STATION_INFO_URL = "https://aviationweather.gov/api/data/stationinfo"
@@ -361,7 +361,7 @@ def extract_station_coordinates(metar):
             return latitude, longitude
 
     if isinstance(location, (list, tuple)) and len(location) >= 2:
-        # Format koordinat umum: [lon, lat]
+        # Common coordinate format: [lon, lat]
         return location[1], location[0]
 
     return None, None
@@ -513,7 +513,7 @@ def monitor_metar(icao, poll_interval):
     try:
         import requests
     except ModuleNotFoundError:
-        print(color_text("Module requests belum terpasang. Jalankan: py -m pip install requests", RED))
+        print(color_text("The requests module is not installed. Run: py -m pip install requests", RED))
         return
 
     headers = {
@@ -530,15 +530,15 @@ def monitor_metar(icao, poll_interval):
     except Exception:
         tzinfo = timezone.utc
 
-    # Variabel untuk mendeteksi perubahan data
+    # Used to detect observation changes.
     last_record_key = read_last_live_record_key(live_csv_file)
 
-    print(color_text(f"Monitoring METAR {icao} via CheckWX API (setiap {poll_interval//60} menit)\n", GREEN))
-    print(color_text(f"Timezone stasiun {icao}: {station_timezone}", GREEN))
-    print(color_text(f"Live CSV aktif: {live_csv_file}", GREEN))
+    print(color_text(f"Monitoring METAR {icao} via CheckWX API (every {poll_interval//60} minutes)\n", GREEN))
+    print(color_text(f"Station timezone for {icao}: {station_timezone}", GREEN))
+    print(color_text(f"Live CSV file: {live_csv_file}", GREEN))
 
     while True:
-        # Waktu sekarang dalam WIB (UTC+7)
+        # Current time in WIB (UTC+7)
         wib_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%H:%M:%S")
 
         try:
@@ -555,9 +555,9 @@ def monitor_metar(icao, poll_interval):
                     raw_text = row.get("raw_text") or ""
                     record_key = (observed, raw_text)
 
-                    # Cek apakah ada data baru
+                    # Check whether there is new data.
                     if record_key != last_record_key:
-                        print(color_text(f"[{wib_time}] Data BARU diterima!", GREEN))
+                        print(color_text(f"[{wib_time}] NEW data received!", GREEN))
                         print(f"local_time         : {observed}")
                         print(f"raw_text           : {raw_text or 'N/A'}")
                         print(f"report_type        : {row.get('report_type')}")
@@ -572,40 +572,40 @@ def monitor_metar(icao, poll_interval):
 
                         append_live_row(row, live_csv_file)
 
-                        print(color_text(f"Record live tersimpan ke {live_csv_file}", GREEN))
+                        print(color_text(f"Live record saved to {live_csv_file}", GREEN))
                         print(color_text("-" * 80, GREEN))
 
                         last_record_key = record_key
                     else:
-                        print(color_text(f"[{wib_time}] Tidak ada perubahan data...", YELLOW))
+                        print(color_text(f"[{wib_time}] No data changes...", YELLOW))
 
             elif response.status_code == 429:
-                print(color_text(f"[{wib_time}] Rate limit exceeded (429). Tunggu sebentar...", YELLOW))
+                print(color_text(f"[{wib_time}] Rate limit exceeded (429). Please wait...", YELLOW))
             else:
                 print(color_text(f"[{wib_time}] Error HTTP {response.status_code}: {response.text[:100]}", RED))
 
         except requests.exceptions.RequestException as e:
-            print(color_text(f"[{wib_time}] Koneksi error: {e}", RED))
+            print(color_text(f"[{wib_time}] Connection error: {e}", RED))
         except Exception as e:
             print(color_text(f"[{wib_time}] Unexpected error: {e}", RED))
 
-        # Tunggu sampai interval berikutnya
+        # Wait until the next polling interval.
         time.sleep(poll_interval)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Realtime METAR monitor dari CheckWX + rekam live CSV.")
-    parser.add_argument("--icao", required=True, help="Kode ICAO, contoh: WSSS")
+    parser = argparse.ArgumentParser(description="Realtime METAR monitor from CheckWX + live CSV logging.")
+    parser.add_argument("--icao", required=True, help="ICAO code, example: WSSS")
     parser.add_argument(
         "--interval",
         type=int,
         default=DEFAULT_POLL_INTERVAL,
-        help=f"Interval polling dalam detik (default: {DEFAULT_POLL_INTERVAL})",
+        help=f"Polling interval in seconds (default: {DEFAULT_POLL_INTERVAL})",
     )
     args = parser.parse_args()
 
     if args.interval <= 0:
-        parser.error("--interval harus lebih besar dari 0")
+        parser.error("--interval must be greater than 0")
 
     return args
 

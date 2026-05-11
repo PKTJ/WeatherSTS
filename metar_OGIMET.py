@@ -54,14 +54,14 @@ def _wait_and_retry(retry_count: int, reason: str) -> bool:
         return False
     delay_seconds = RETRY_BACKOFF_SECONDS[retry_count]
     _log(
-        f"{reason} Retry {retry_count + 1}/{len(RETRY_BACKOFF_SECONDS)} dalam {delay_seconds} detik.",
+        f"{reason} Retry {retry_count + 1}/{len(RETRY_BACKOFF_SECONDS)} in {delay_seconds} seconds.",
         "warning",
     )
     sleep(delay_seconds)
     return True
 
-# ================== METADATA STASIUN ==================
-# Tambahkan stasiun lain di sini kalau perlu
+# ================== STATION METADATA ==================
+# Add more stations here if needed.
 STATIONS = {
     # "WIII": {"lat": -6.1256, "lon": 106.6556, "elev_m": 16, "tz": "Asia/Jakarta"},  # default
     "WSSS": {"lat": 1.3508, "lon": 103.9942, "elev_m": 16, "tz": "Asia/Singapore"},
@@ -120,12 +120,12 @@ def parse_metar(raw_report: str, icao: str, obs_time_utc: datetime = None):
         # Report type
         report_type = "SPECI" if raw_report.startswith("SPECI") else "METAR"
 
-        # Suhu & Tekanan
+        # Temperature & pressure
         temp_c = round(m.temp.value("C"), 1) if m.temp else None
         dewpoint_c = round(m.dewpt.value("C"), 1) if m.dewpt else None
         pressure_mb = round(m.press.value("MB"), 1) if m.press else None
 
-        # Angin
+        # Wind
         try:
             wind_dir = m.wind_dir.value() if m.wind_dir else ("VRB" if "VRB" in raw_report else None)
         except (AttributeError, TypeError):
@@ -142,7 +142,7 @@ def parse_metar(raw_report: str, icao: str, obs_time_utc: datetime = None):
         if m.wind_dir_from and m.wind_dir_to:
             wind_dir_var = f"{int(m.wind_dir_from.value())}V{int(m.wind_dir_to.value())}"
 
-        # Visibilitas & Awan
+        # Visibility & clouds
         visibility = m.vis.value() if m.vis else None
         sky_layers = m.sky or []
         cloud_parts = []
@@ -154,7 +154,7 @@ def parse_metar(raw_report: str, icao: str, obs_time_utc: datetime = None):
                 cloud_parts.append(cover)
         cloud_layers = " ".join(cloud_parts) or None
 
-        # Cuaca sekarang
+        # Present weather
         wx_string = " ".join([f"{w[0]}{w[1] or ''}{w[2] or ''}" for w in m.weather]) or None
 
         # Flight category
@@ -185,13 +185,13 @@ def parse_metar(raw_report: str, icao: str, obs_time_utc: datetime = None):
         if "COR" in raw_report:
             auto += "/COR" if auto else "COR"
 
-        # Remarks & tambahan
+        # Remarks & extras
         remarks_source = m.remarks
         remarks = remarks_source() if callable(remarks_source) else (remarks_source or "")
         remarks = str(remarks)
         recent_match = re.search(r"\bRE[A-Z]{2,4}\b", remarks)
         recent_weather = recent_match.group(0) if recent_match else None
-        rvr = None  # bisa ditambah parsing manual kalau sering muncul
+        rvr = None  # Can be expanded with manual parsing if often present.
         rmk_indicators = []
         for ind in ["WSHFT", "PK WND", "PRESFR", "PRESRR", "TSE", "TS"]:
             if ind in remarks and ind not in rmk_indicators:
@@ -223,7 +223,7 @@ def parse_metar(raw_report: str, icao: str, obs_time_utc: datetime = None):
             "elevation_m": station["elev_m"],
         }
     except Exception as e:
-        _log(f"Parse error: {e} → raw disimpan", "warning")
+        _log(f"Parse error: {e} -> raw report retained", "warning")
         return {
             "local_time": None, "report_type": "METAR",
             "raw_text": raw_report, "temp_c": None, "dewpoint_c": None, "pressure_mb": None,
@@ -241,7 +241,7 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
     date_str = target_date.strftime("%Y%m%d")
 
     url = f"https://www.ogimet.com/cgi-bin/getmetar?icao={icao}&begin={begin}&end={end}&header=yes"
-    _log(f"Mengambil {icao} tanggal {target_date.strftime('%Y-%m-%d')}...", "info")
+    _log(f"Fetching {icao} for date {target_date.strftime('%Y-%m-%d')}...", "info")
 
     retry_count = 0
     while True:
@@ -249,54 +249,54 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
             r = requests.get(url, timeout=30)
             status_code = r.status_code
             if status_code in PERMANENT_HTTP_STATUSES:
-                _log(f"Gagal request permanen HTTP {status_code}. Tidak retry.", "error")
+                _log(f"Permanent HTTP request failure {status_code}. No retry.", "error")
                 _log(
-                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    f"Date {target_date.strftime('%Y-%m-%d')} skipped, continue to next date (if any).",
                     "warning",
                 )
                 return
 
             if status_code in TRANSIENT_HTTP_STATUSES:
-                should_retry = _wait_and_retry(retry_count, f"HTTP {status_code} terdeteksi.")
+                should_retry = _wait_and_retry(retry_count, f"HTTP {status_code} detected.")
                 if should_retry:
                     retry_count += 1
                     continue
                 _log(
-                    f"Gagal request: HTTP {status_code} setelah {len(RETRY_BACKOFF_SECONDS)} retry.",
+                    f"Request failed: HTTP {status_code} after {len(RETRY_BACKOFF_SECONDS)} retries.",
                     "error",
                 )
                 _log(
-                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    f"Date {target_date.strftime('%Y-%m-%d')} skipped, continue to next date (if any).",
                     "warning",
                 )
                 return
 
             if status_code >= 400:
-                _log(f"Gagal request HTTP {status_code}. Tidak retry.", "error")
+                _log(f"HTTP request failed {status_code}. No retry.", "error")
                 _log(
-                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    f"Date {target_date.strftime('%Y-%m-%d')} skipped, continue to next date (if any).",
                     "warning",
                 )
                 return
 
             break
         except (requests.Timeout, requests.ConnectionError) as e:
-            should_retry = _wait_and_retry(retry_count, f"Gangguan koneksi/timeout: {e}.")
+            should_retry = _wait_and_retry(retry_count, f"Connection/timeout issue: {e}.")
             if should_retry:
                 retry_count += 1
                 continue
-            _log(f"Gagal request: {e}", "error")
+            _log(f"Request failed: {e}", "error")
             _log(
-                f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                f"Date {target_date.strftime('%Y-%m-%d')} skipped, continue to next date (if any).",
                 "warning",
             )
             return
         except requests.RequestException as e:
             status_code = e.response.status_code if e.response is not None else None
             if status_code in PERMANENT_HTTP_STATUSES:
-                _log(f"Gagal request permanen HTTP {status_code}. Tidak retry.", "error")
+                _log(f"Permanent HTTP request failure {status_code}. No retry.", "error")
                 _log(
-                    f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                    f"Date {target_date.strftime('%Y-%m-%d')} skipped, continue to next date (if any).",
                     "warning",
                 )
                 return
@@ -305,16 +305,16 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
             if should_retry:
                 retry_count += 1
                 continue
-            _log(f"Gagal request: {e}", "error")
+            _log(f"Request failed: {e}", "error")
             _log(
-                f"Tanggal {target_date.strftime('%Y-%m-%d')} dilewati, lanjut ke tanggal berikutnya (jika ada).",
+                f"Date {target_date.strftime('%Y-%m-%d')} skipped, continue to next date (if any).",
                 "warning",
             )
             return
 
     lines = r.text.strip().split("\n")
     if len(lines) <= 1:
-        _log("  Tidak ada data", "info")
+        _log("  No data", "info")
         return
 
     data = []
@@ -334,7 +334,7 @@ def scrape_day(icao: str, target_date: datetime, output_dir: str):
             pass
 
     if not data:
-        _log("  Tidak ada record valid", "warning")
+        _log("  No valid records", "warning")
         return
 
     df = pd.DataFrame(data)
@@ -355,24 +355,24 @@ def update_final_csv_metar(new_df, output_dir, icao):
                 combined = combined.drop_duplicates(subset=['local_time'], keep='first')
                 combined = combined.sort_values('local_time')
             combined.to_csv(final_filename, index=False)
-            _log(f"\nBerhasil mengupdate file gabungan {final_filename} (total {len(combined)} record)", "success")
+            _log(f"\nMerged file updated successfully: {final_filename} (total {len(combined)} records)", "success")
         except Exception as e:
-            _log(f"\nGagal update gabungan: {e}", "error")
+            _log(f"\nFailed to update merged file: {e}", "error")
     else:
         if 'local_time' in new_df.columns:
             new_df = new_df.sort_values('local_time')
         new_df.to_csv(final_filename, index=False)
-        _log(f"\nBerhasil membuat file gabungan baru {final_filename} dengan {len(new_df)} record", "success")
+        _log(f"\nCreated new merged file successfully: {final_filename} with {len(new_df)} records", "success")
 
 # ================== ARGUMENT PARSER ==================
 if __name__ == "__main__":
     _init_terminal_colors()
     parser = argparse.ArgumentParser(description="Ogimet METAR Scraper + Parser")
-    parser.add_argument("--icao", required=True, help="Kode ICAO (contoh: WIII)")
+    parser.add_argument("--icao", required=True, help="ICAO code (example: WIII)")
     parser.add_argument("--date", help="Mode single day: YYYY-MM-DD")
-    parser.add_argument("--start", help="Mode range: tanggal mulai YYYY-MM-DD")
-    parser.add_argument("--end", help="Mode range: tanggal akhir YYYY-MM-DD")
-    parser.add_argument("--output", default="ogimet_data", help="Folder output (default: ogimet_data)")
+    parser.add_argument("--start", help="Range mode: start date YYYY-MM-DD")
+    parser.add_argument("--end", help="Range mode: end date YYYY-MM-DD")
+    parser.add_argument("--output", default="ogimet_data", help="Output folder (default: ogimet_data)")
 
     args = parser.parse_args()
     os.makedirs(args.output, exist_ok=True)
@@ -402,10 +402,10 @@ if __name__ == "__main__":
             final_df = pd.concat(all_dfs, ignore_index=True)
             update_final_csv_metar(final_df, args.output, args.icao)
     else:
-        _log("Harus pakai --date atau --start + --end", "error")
+        _log("You must use --date or --start + --end", "error")
         run_ok = False
 
     if run_ok:
-        _log(f"\nSelesai! Semua file CSV ada di folder: {args.output}", "success")
+        _log(f"\nDone! All CSV files are in folder: {args.output}", "success")
     else:
-        _log("Program dihentikan karena parameter belum lengkap.", "warning")
+        _log("Program stopped because parameters are incomplete.", "warning")
