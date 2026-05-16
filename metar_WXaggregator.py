@@ -538,8 +538,11 @@ def monitor_metar(icao, poll_interval):
     print(color_text(f"Live CSV file: {live_csv_file}", GREEN))
 
     while True:
-        # Current time in WIB (UTC+7)
-        wib_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%H:%M:%S")
+        # Current time in the station's local timezone (falls back to UTC on error)
+        try:
+            local_time_now = datetime.now(tzinfo).strftime("%H:%M:%S")
+        except Exception:
+            local_time_now = datetime.utcnow().strftime("%H:%M:%S")
 
         try:
             response = requests.get(url, headers=headers, timeout=10)
@@ -557,7 +560,7 @@ def monitor_metar(icao, poll_interval):
 
                     # Check whether there is new data.
                     if record_key != last_record_key:
-                        print(color_text(f"[{wib_time}] NEW data received!", GREEN))
+                        print(color_text(f"[{local_time_now}] NEW data received!", GREEN))
                         print(f"local_time         : {observed}")
                         print(f"raw_text           : {raw_text or 'N/A'}")
                         print(f"report_type        : {row.get('report_type')}")
@@ -577,17 +580,17 @@ def monitor_metar(icao, poll_interval):
 
                         last_record_key = record_key
                     else:
-                        print(color_text(f"[{wib_time}] No data changes...", YELLOW))
+                        print(color_text(f"[{local_time_now}] No data changes...", YELLOW))
 
             elif response.status_code == 429:
-                print(color_text(f"[{wib_time}] Rate limit exceeded (429). Please wait...", YELLOW))
+                print(color_text(f"[{local_time_now}] Rate limit exceeded (429). Please wait...", YELLOW))
             else:
-                print(color_text(f"[{wib_time}] Error HTTP {response.status_code}: {response.text[:100]}", RED))
+                print(color_text(f"[{local_time_now}] Error HTTP {response.status_code}: {response.text[:100]}", RED))
 
         except requests.exceptions.RequestException as e:
-            print(color_text(f"[{wib_time}] Connection error: {e}", RED))
+            print(color_text(f"[{local_time_now}] Connection error: {e}", RED))
         except Exception as e:
-            print(color_text(f"[{wib_time}] Unexpected error: {e}", RED))
+            print(color_text(f"[{local_time_now}] Unexpected error: {e}", RED))
 
         # Wait until the next polling interval.
         time.sleep(poll_interval)
