@@ -114,7 +114,7 @@ def create_auto_output_dir(base_name):
 def resolve_output_dir(mode, date_str, end_date_str=None, station_id=None, manual_output_dir=None):
     if manual_output_dir:
         os.makedirs(manual_output_dir, exist_ok=True)
-        print(f"Output folder manual: {manual_output_dir}")
+        print(f"Manual output folder: {manual_output_dir}")
         return manual_output_dir
 
     if not station_id:
@@ -135,7 +135,7 @@ def resolve_output_dir(mode, date_str, end_date_str=None, station_id=None, manua
         base_name = f"pws_{station_id}_{start_token}"
 
     output_dir = create_auto_output_dir(base_name)
-    print(f"Output folder otomatis: {output_dir}")
+    print(f"Auto-generated output folder: {output_dir}")
     return output_dir
 
 def ensure_split_output_dirs(output_dir):

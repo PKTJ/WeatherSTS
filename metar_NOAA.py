@@ -458,7 +458,7 @@ def realtime_mode(icao):
             # Print and save only when observation data changes.
             if record_key != last_record_key:
                 print(color_text("=" * 80, GREEN))
-                print(color_text(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S WIB')}", GREEN))
+                print(color_text(f"Time {datetime.now().strftime('%Y-%m-%d %H:%M:%S local')}", GREEN))
                 print(f"local_time       : {local_time}")
                 print(f"raw_text         : {raw_text}")
                 print(f"report_type      : {report_type}")

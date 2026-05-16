@@ -480,7 +480,7 @@ def main():
         # Let argparse exits pass through
         raise
     except Exception as e:
-        print(color_text(f"Error fatal: {e}", RED))
+        print(color_text(f"Fatal error: {e}", RED))
         sys.exit(1)
 
 
