@@ -53,6 +53,8 @@ HOURLY_VARS = [
 MAX_RETRIES = 3
 BASE_DELAY = 2        # seconds
 BACKOFF_FACTOR = 2    # exponential: 2s, 4s, 8s
+CONNECT_TIMEOUT = 10  # seconds
+READ_TIMEOUT = 30     # seconds
 
 # ====================== TERMINAL COLORS ======================
 GREEN = "\033[92m"
@@ -66,6 +68,18 @@ def color_text(text, color):
     return f"{color}{text}{RESET}"
 
 
+def format_exception_short(error: Exception) -> str:
+    """Return concise error text without dumping long URL/query details."""
+    if isinstance(error, requests.Timeout):
+        return "network timeout"
+    if isinstance(error, requests.ConnectionError):
+        return "network connection error"
+    if isinstance(error, requests.HTTPError):
+        status_code = error.response.status_code if error.response is not None else "unknown"
+        return f"HTTP {status_code}"
+    return error.__class__.__name__
+
+
 # ====================== CLI ARGUMENT PARSING ======================
 def validate_date(date_string):
     try:
@@ -73,7 +87,7 @@ def validate_date(date_string):
         return date_string
     except ValueError:
         raise argparse.ArgumentTypeError(
-            f"Invalid date format: '{date_string}'. Use YYYY-MM-DD."
+            f"Format tanggal tidak valid: '{date_string}'. Gunakan format YYYY-MM-DD."
         )
 
 
@@ -87,37 +101,37 @@ def build_parser():
         "--lat",
         type=float,
         required=True,
-        help="Target latitude (example: -6.1256)",
+        help="Latitude target (contoh: -6.1256)",
     )
     parser.add_argument(
         "--lon",
         type=float,
         required=True,
-        help="Target longitude (example: 106.6556)",
+        help="Longitude target (contoh: 106.6556)",
     )
 
     # Optional date arguments
     parser.add_argument(
         "--date",
         type=validate_date,
-        help="Single-day mode: date in YYYY-MM-DD format",
+        help="Mode single day: tanggal dalam format YYYY-MM-DD",
     )
     parser.add_argument(
         "--start",
         type=validate_date,
-        help="Batch mode: start date in YYYY-MM-DD format",
+        help="Mode batch: tanggal mulai dalam format YYYY-MM-DD",
     )
     parser.add_argument(
         "--end",
         type=validate_date,
-        help="Batch mode: end date in YYYY-MM-DD format",
+        help="Mode batch: tanggal akhir dalam format YYYY-MM-DD",
     )
 
     # Optional output directory
     parser.add_argument(
         "--output",
         default="global_model_data",
-        help="Output folder (default: global_model_data)",
+        help="Folder output (default: global_model_data)",
     )
 
     # Optional model filter
@@ -126,7 +140,7 @@ def build_parser():
         nargs="+",
         choices=list(MODELS.keys()),
         default=None,
-        help="Specific model(s) to fetch (default: all). Example: --model gfs icon",
+        help="Model tertentu yang ingin ditarik (default: semua). Contoh: --model gfs icon",
     )
 
     # Optional filter flag for realtime deduplication behavior
@@ -134,13 +148,27 @@ def build_parser():
         "--filter",
         action="store_true",
         default=False,
-           help="When enabled, existing CSV rows are preserved and not overwritten by newer rows (keep existing). "
-               "Without --filter, older rows can be replaced by data from the latest model run.",
+        help="Jika digunakan, data yang sudah ada di CSV tidak akan di-overwrite oleh data baru (keep existing). "
+             "Tanpa --filter, data lama akan diganti dengan data terbaru dari model run terbaru.",
+    )
+
+    parser.add_argument(
+        "--quiet-fallback",
+        action="store_true",
+        default=False,
+        help="Sembunyikan log fallback historical -> forecast.",
+    )
+
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        default=False,
+        help="Nonaktifkan fallback historical -> forecast (untuk testing/debug).",
     )
 
     # Subcommands
     subparsers = parser.add_subparsers(dest="mode")
-    subparsers.add_parser("realtime", help="Realtime mode: continuously poll latest data")
+    subparsers.add_parser("realtime", help="Mode realtime: polling data terbaru secara kontinu")
 
     return parser
 
@@ -151,14 +179,14 @@ def parse_and_validate_args(args=None):
 
     # Validation: --start without --end or vice versa
     if parsed.start and not parsed.end:
-        parser.error("--start requires --end. Use both for batch mode.")
+        parser.error("--start membutuhkan --end. Gunakan keduanya untuk mode batch.")
     if parsed.end and not parsed.start:
-        parser.error("--end requires --start. Use both for batch mode.")
+        parser.error("--end membutuhkan --start. Gunakan keduanya untuk mode batch.")
 
     # Validation: no mode specified
     if not parsed.mode and not parsed.date and not (parsed.start and parsed.end):
         parser.error(
-            "No mode selected. Use --date, --start/--end, or the 'realtime' subcommand."
+            "Tidak ada mode yang dipilih. Gunakan --date, --start/--end, atau subcommand 'realtime'."
         )
 
     return parsed
@@ -172,13 +200,9 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 def fetch_model_data(model_name: str, lat: float, lon: float,
                      start_date: str, end_date: str,
-                     endpoint: str = "historical") -> dict:
-    # Select URL based on endpoint type
-    if endpoint == "forecast":
-        url = FORECAST_URL
-    else:
-        url = HISTORICAL_URL
-
+                     endpoint: str = "historical",
+                     allow_fallback: bool = True,
+                     log_fallback: bool = True) -> dict:
     # Get the API model name
     model_config = MODELS[model_name]
     api_model_name = model_config["api_name"]
@@ -199,23 +223,70 @@ def fetch_model_data(model_name: str, lat: float, lon: float,
         params["start_date"] = start_date
         params["end_date"] = end_date
 
-    # Make the request with 30-second timeout
-    response = requests.get(url, params=params, timeout=30)
-    response.raise_for_status()
+    # Forecast mode always uses forecast endpoint.
+    if endpoint == "forecast":
+        response = requests.get(
+            FORECAST_URL,
+            params=params,
+            timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+        )
+        response.raise_for_status()
+        return response.json()
 
-    return response.json()
+    # Historical mode: prefer historical endpoint, but fallback to forecast endpoint
+    # if connectivity to historical endpoint is unavailable.
+    try:
+        response = requests.get(
+            HISTORICAL_URL,
+            params=params,
+            timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+        )
+        response.raise_for_status()
+        return response.json()
+    except (requests.Timeout, requests.ConnectionError):
+        if not allow_fallback:
+            raise
+
+        if log_fallback:
+            print(color_text(
+                f"[{model_name}] historical timeout -> fallback forecast",
+                YELLOW,
+            ))
+        try:
+            fallback_response = requests.get(
+                FORECAST_URL,
+                params=params,
+                timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+            )
+            fallback_response.raise_for_status()
+            return fallback_response.json()
+        except (requests.Timeout, requests.ConnectionError) as fallback_error:
+            raise requests.ConnectionError(
+                "network unreachable on historical and forecast endpoints"
+            ) from fallback_error
 
 
 def fetch_with_retry(model_name: str, lat: float, lon: float,
                      start_date: str, end_date: str,
-                     endpoint: str = "historical") -> dict:
+                     endpoint: str = "historical",
+                     allow_fallback: bool = True,
+                     log_fallback: bool = True) -> dict:
     for attempt in range(MAX_RETRIES + 1):
         try:
-            return fetch_model_data(model_name, lat, lon, start_date, end_date, endpoint)
+            return fetch_model_data(
+                model_name,
+                lat,
+                lon,
+                start_date,
+                end_date,
+                endpoint,
+                allow_fallback,
+                log_fallback,
+            )
         except (requests.Timeout, requests.ConnectionError) as e:
             if attempt == MAX_RETRIES:
                 print(color_text(
-                    f"[{model_name}] All retries exhausted: {e}", RED
+                    f"[{model_name}] All retries exhausted ({format_exception_short(e)}).", RED
                 ))
                 raise
             delay = BASE_DELAY * (BACKOFF_FACTOR ** attempt)
@@ -224,9 +295,8 @@ def fetch_with_retry(model_name: str, lat: float, lon: float,
             ))
             time.sleep(delay)
         except requests.HTTPError as e:
-            status_code = e.response.status_code if e.response is not None else "unknown"
             print(color_text(
-                f"[{model_name}] HTTP {status_code}: {e}", RED
+                f"[{model_name}] {format_exception_short(e)}", RED
             ))
             raise
 
@@ -306,12 +376,14 @@ def write_model_csv(df: pd.DataFrame, model_name: str, output_dir: str, keep_exi
 
 
 # ====================== BATCH MODE ======================
-def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir: str, models: dict = None, keep_existing: bool = True):
+def run_batch(lat: float, lon: float, start_date: str, end_date: str,
+              output_dir: str, models: dict = None, keep_existing: bool = True,
+              allow_fallback: bool = True, log_fallback: bool = True):
     if models is None:
         models = MODELS
 
-    print(f"BATCH mode: {start_date} to {end_date}")
-    print(f"Coordinates: {lat}, {lon}")
+    print(f"Mode BATCH: {start_date} sampai {end_date}")
+    print(f"Koordinat: {lat}, {lon}")
     print(f"Output: {output_dir}/")
     print(f"Models: {', '.join(models.keys())}\n")
 
@@ -322,7 +394,14 @@ def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir
         print(f"  Fetching {model_name.upper()}...", end=" ")
         try:
             response_json = fetch_with_retry(
-                model_name, lat, lon, start_date, end_date, endpoint="historical"
+                model_name,
+                lat,
+                lon,
+                start_date,
+                end_date,
+                endpoint="historical",
+                allow_fallback=allow_fallback,
+                log_fallback=log_fallback,
             )
             df = parse_response(response_json, model_name, lat, lon)
             duplicates = write_model_csv(df, model_name, output_dir, keep_existing)
@@ -330,19 +409,21 @@ def run_batch(lat: float, lon: float, start_date: str, end_date: str, output_dir
             print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates {action})", GREEN))
             success_count += 1
         except Exception as e:
-            print(color_text(f"FAILED: {e}", RED))
+            print(color_text(f"GAGAL: {format_exception_short(e)}", RED))
             error_count += 1
 
-    print(f"\nDone: {success_count} succeeded, {error_count} failed.")
+    print(f"\nSelesai: {success_count} berhasil, {error_count} gagal.")
 
 
 # ====================== SINGLE DATE MODE ======================
-def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: dict = None, keep_existing: bool = True):
+def run_single_date(lat: float, lon: float, date: str,
+                    output_dir: str, models: dict = None, keep_existing: bool = True,
+                    allow_fallback: bool = True, log_fallback: bool = True):
     if models is None:
         models = MODELS
 
     print(f"Mode SINGLE DATE: {date}")
-    print(f"Coordinates: {lat}, {lon}")
+    print(f"Koordinat: {lat}, {lon}")
     print(f"Output: {output_dir}/")
     print(f"Models: {', '.join(models.keys())}\n")
 
@@ -353,7 +434,14 @@ def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: 
         print(f"  Fetching {model_name.upper()}...", end=" ")
         try:
             response_json = fetch_with_retry(
-                model_name, lat, lon, date, date, endpoint="historical"
+                model_name,
+                lat,
+                lon,
+                date,
+                date,
+                endpoint="historical",
+                allow_fallback=allow_fallback,
+                log_fallback=log_fallback,
             )
             df = parse_response(response_json, model_name, lat, lon)
             duplicates = write_model_csv(df, model_name, output_dir, keep_existing)
@@ -361,10 +449,10 @@ def run_single_date(lat: float, lon: float, date: str, output_dir: str, models: 
             print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates {action})", GREEN))
             success_count += 1
         except Exception as e:
-            print(color_text(f"FAILED: {e}", RED))
+            print(color_text(f"GAGAL: {format_exception_short(e)}", RED))
             error_count += 1
 
-    print(f"\nDone: {success_count} succeeded, {error_count} failed.")
+    print(f"\nSelesai: {success_count} berhasil, {error_count} gagal.")
 
 
 # ====================== REALTIME MODE ======================
@@ -390,20 +478,22 @@ def should_fetch_model(model_name: str, last_fetched, now: datetime) -> bool:
     return elapsed >= interval_seconds
 
 
-def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None, keep_existing: bool = True):
+def run_realtime(lat: float, lon: float, output_dir: str,
+                 models: dict = None, keep_existing: bool = True,
+                 allow_fallback: bool = True, log_fallback: bool = True):
     if models is None:
         models = MODELS
 
     CHECK_INTERVAL = 900  # 15 minutes in seconds
 
-    filter_mode = "ON (preserve existing rows)" if keep_existing else "OFF (overwrite with latest rows)"
-    print(f"REALTIME mode: continuous polling")
-    print(f"Coordinates: {lat}, {lon}")
+    filter_mode = "ON (data lama dipertahankan)" if keep_existing else "OFF (data lama di-overwrite)"
+    print(f"Mode REALTIME: polling kontinu")
+    print(f"Koordinat: {lat}, {lon}")
     print(f"Output: {output_dir}/")
-    print(f"Check interval: {CHECK_INTERVAL // 60} minutes")
+    print(f"Check interval: {CHECK_INTERVAL // 60} menit")
     print(f"Models: {', '.join(models.keys())}")
     print(f"Filter: {filter_mode}")
-    print(f"Press Ctrl+C to stop.\n")
+    print(f"Tekan Ctrl+C untuk berhenti.\n")
 
     # Track last fetch time per model (None = never fetched)
     last_fetched = {model: None for model in models}
@@ -420,7 +510,14 @@ def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None, k
                 if should_fetch_model(model_name, last_fetched[model_name], now):
                     try:
                         response_json = fetch_with_retry(
-                            model_name, lat, lon, "", "", endpoint="forecast"
+                            model_name,
+                            lat,
+                            lon,
+                            "",
+                            "",
+                            endpoint="forecast",
+                            allow_fallback=allow_fallback,
+                            log_fallback=log_fallback,
                         )
                         df = parse_response(response_json, model_name, lat, lon)
                         write_model_csv(df, model_name, output_dir, keep_existing)
@@ -428,7 +525,7 @@ def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None, k
                         fetched_this_cycle.append(model_name)
                         total_fetches += 1
                     except Exception as e:
-                        print(color_text(f"  [{model_name}] Error: {e}", RED))
+                        print(color_text(f"  [{model_name}] Error: {format_exception_short(e)}", RED))
                         total_errors += 1
                 else:
                     skipped_this_cycle.append(model_name)
@@ -442,7 +539,7 @@ def run_realtime(lat: float, lon: float, output_dir: str, models: dict = None, k
             time.sleep(CHECK_INTERVAL)
 
     except KeyboardInterrupt:
-        print(f"\nRealtime monitoring stopped.")
+        print(f"\nRealtime monitoring dihentikan.")
         print(f"Total fetches: {total_fetches}, Errors: {total_errors}")
 
 
@@ -460,27 +557,57 @@ def main():
         else:
             selected_models = MODELS
 
+        allow_fallback = not args.no_fallback
+        log_fallback = not args.quiet_fallback
+
         # Route to appropriate mode
         if args.mode == "realtime":
-            run_realtime(args.lat, args.lon, args.output, selected_models, args.filter)
+            run_realtime(
+                args.lat,
+                args.lon,
+                args.output,
+                selected_models,
+                args.filter,
+                allow_fallback,
+                log_fallback,
+            )
         elif args.date:
-            run_single_date(args.lat, args.lon, args.date, args.output, selected_models, args.filter)
+            run_single_date(
+                args.lat,
+                args.lon,
+                args.date,
+                args.output,
+                selected_models,
+                args.filter,
+                allow_fallback,
+                log_fallback,
+            )
         elif args.start and args.end:
-            run_batch(args.lat, args.lon, args.start, args.end, args.output, selected_models, args.filter)
+            run_batch(
+                args.lat,
+                args.lon,
+                args.start,
+                args.end,
+                args.output,
+                selected_models,
+                args.filter,
+                allow_fallback,
+                log_fallback,
+            )
         else:
             # This shouldn't be reached due to parse_and_validate_args validation,
             # but included as a safety net.
-            print(color_text("Error: No mode selected.", RED))
+            print(color_text("Error: Tidak ada mode yang dipilih.", RED))
             sys.exit(1)
 
     except KeyboardInterrupt:
-        print("\nProcess canceled by user.")
+        print("\nProses dibatalkan oleh pengguna.")
         sys.exit(0)
     except SystemExit:
         # Let argparse exits pass through
         raise
     except Exception as e:
-        print(color_text(f"Fatal error: {e}", RED))
+        print(color_text(f"Error fatal: {format_exception_short(e)}", RED))
         sys.exit(1)
 
 

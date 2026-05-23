@@ -232,6 +232,18 @@ python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025
 python inf_global_model.py --lat <LAT> --lon <LON> realtime --model gfs icon gem
 ```
 
+#### Quiet fallback logs
+
+```bash
+python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025-04-30 --quiet-fallback
+```
+
+#### Disable fallback for testing
+
+```bash
+python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025-04-30 --no-fallback
+```
+
 #### Notes
 
 - Available models: `gfs`, `icon`, `ecmwf_ifs`, `gem`, `arpege`, `access_g`, `era5`.
