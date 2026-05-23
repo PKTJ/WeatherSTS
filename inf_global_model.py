@@ -87,7 +87,7 @@ def validate_date(date_string):
         return date_string
     except ValueError:
         raise argparse.ArgumentTypeError(
-            f"Format tanggal tidak valid: '{date_string}'. Gunakan format YYYY-MM-DD."
+            f"Invalid date format: '{date_string}'. Use YYYY-MM-DD."
         )
 
 
@@ -101,37 +101,37 @@ def build_parser():
         "--lat",
         type=float,
         required=True,
-        help="Latitude target (contoh: -6.1256)",
+        help="Target latitude (example: -6.1256)",
     )
     parser.add_argument(
         "--lon",
         type=float,
         required=True,
-        help="Longitude target (contoh: 106.6556)",
+        help="Target longitude (example: 106.6556)",
     )
 
     # Optional date arguments
     parser.add_argument(
         "--date",
         type=validate_date,
-        help="Mode single day: tanggal dalam format YYYY-MM-DD",
+        help="Single-day mode: date in YYYY-MM-DD format",
     )
     parser.add_argument(
         "--start",
         type=validate_date,
-        help="Mode batch: tanggal mulai dalam format YYYY-MM-DD",
+        help="Batch mode: start date in YYYY-MM-DD format",
     )
     parser.add_argument(
         "--end",
         type=validate_date,
-        help="Mode batch: tanggal akhir dalam format YYYY-MM-DD",
+        help="Batch mode: end date in YYYY-MM-DD format",
     )
 
     # Optional output directory
     parser.add_argument(
         "--output",
         default="global_model_data",
-        help="Folder output (default: global_model_data)",
+        help="Output folder (default: global_model_data)",
     )
 
     # Optional model filter
@@ -140,7 +140,7 @@ def build_parser():
         nargs="+",
         choices=list(MODELS.keys()),
         default=None,
-        help="Model tertentu yang ingin ditarik (default: semua). Contoh: --model gfs icon",
+        help="Specific models to fetch (default: all). Example: --model gfs icon",
     )
 
     # Optional filter flag for realtime deduplication behavior
@@ -148,27 +148,29 @@ def build_parser():
         "--filter",
         action="store_true",
         default=False,
-        help="Jika digunakan, data yang sudah ada di CSV tidak akan di-overwrite oleh data baru (keep existing). "
-             "Tanpa --filter, data lama akan diganti dengan data terbaru dari model run terbaru.",
+        help=(
+            "If used, existing CSV data won't be overwritten by new data (keep existing). "
+            "Without --filter, old data will be replaced by the latest model run data."
+        ),
     )
 
     parser.add_argument(
         "--quiet-fallback",
         action="store_true",
         default=False,
-        help="Sembunyikan log fallback historical -> forecast.",
+        help="Hide fallback logs from historical -> forecast.",
     )
 
     parser.add_argument(
         "--no-fallback",
         action="store_true",
         default=False,
-        help="Nonaktifkan fallback historical -> forecast (untuk testing/debug).",
+        help="Disable fallback historical -> forecast (for testing/debug).",
     )
 
     # Subcommands
     subparsers = parser.add_subparsers(dest="mode")
-    subparsers.add_parser("realtime", help="Mode realtime: polling data terbaru secara kontinu")
+    subparsers.add_parser("realtime", help="Realtime mode: continuously poll latest data")
 
     return parser
 
@@ -179,14 +181,14 @@ def parse_and_validate_args(args=None):
 
     # Validation: --start without --end or vice versa
     if parsed.start and not parsed.end:
-        parser.error("--start membutuhkan --end. Gunakan keduanya untuk mode batch.")
+        parser.error("--start requires --end. Use both for batch mode.")
     if parsed.end and not parsed.start:
-        parser.error("--end membutuhkan --start. Gunakan keduanya untuk mode batch.")
+        parser.error("--end requires --start. Use both for batch mode.")
 
     # Validation: no mode specified
     if not parsed.mode and not parsed.date and not (parsed.start and parsed.end):
         parser.error(
-            "Tidak ada mode yang dipilih. Gunakan --date, --start/--end, atau subcommand 'realtime'."
+            "No mode selected. Use --date, --start/--end, or subcommand 'realtime'."
         )
 
     return parsed
@@ -382,8 +384,8 @@ def run_batch(lat: float, lon: float, start_date: str, end_date: str,
     if models is None:
         models = MODELS
 
-    print(f"Mode BATCH: {start_date} sampai {end_date}")
-    print(f"Koordinat: {lat}, {lon}")
+    print(f"Mode BATCH: {start_date} to {end_date}")
+    print(f"Coordinates: {lat}, {lon}")
     print(f"Output: {output_dir}/")
     print(f"Models: {', '.join(models.keys())}\n")
 
@@ -409,10 +411,10 @@ def run_batch(lat: float, lon: float, start_date: str, end_date: str,
             print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates {action})", GREEN))
             success_count += 1
         except Exception as e:
-            print(color_text(f"GAGAL: {format_exception_short(e)}", RED))
+            print(color_text(f"FAILED: {format_exception_short(e)}", RED))
             error_count += 1
 
-    print(f"\nSelesai: {success_count} berhasil, {error_count} gagal.")
+    print(f"\nCompleted: {success_count} succeeded, {error_count} failed.")
 
 
 # ====================== SINGLE DATE MODE ======================
@@ -423,7 +425,7 @@ def run_single_date(lat: float, lon: float, date: str,
         models = MODELS
 
     print(f"Mode SINGLE DATE: {date}")
-    print(f"Koordinat: {lat}, {lon}")
+    print(f"Coordinates: {lat}, {lon}")
     print(f"Output: {output_dir}/")
     print(f"Models: {', '.join(models.keys())}\n")
 
@@ -449,10 +451,10 @@ def run_single_date(lat: float, lon: float, date: str,
             print(color_text(f"OK ({len(df)} rows, {duplicates} duplicates {action})", GREEN))
             success_count += 1
         except Exception as e:
-            print(color_text(f"GAGAL: {format_exception_short(e)}", RED))
+            print(color_text(f"FAILED: {format_exception_short(e)}", RED))
             error_count += 1
 
-    print(f"\nSelesai: {success_count} berhasil, {error_count} gagal.")
+    print(f"\nCompleted: {success_count} succeeded, {error_count} failed.")
 
 
 # ====================== REALTIME MODE ======================
@@ -486,14 +488,14 @@ def run_realtime(lat: float, lon: float, output_dir: str,
 
     CHECK_INTERVAL = 900  # 15 minutes in seconds
 
-    filter_mode = "ON (data lama dipertahankan)" if keep_existing else "OFF (data lama di-overwrite)"
-    print(f"Mode REALTIME: polling kontinu")
-    print(f"Koordinat: {lat}, {lon}")
+    filter_mode = "ON (keep existing data)" if keep_existing else "OFF (overwrite existing data)"
+    print(f"Mode REALTIME: continuous polling")
+    print(f"Coordinates: {lat}, {lon}")
     print(f"Output: {output_dir}/")
-    print(f"Check interval: {CHECK_INTERVAL // 60} menit")
+    print(f"Check interval: {CHECK_INTERVAL // 60} minutes")
     print(f"Models: {', '.join(models.keys())}")
     print(f"Filter: {filter_mode}")
-    print(f"Tekan Ctrl+C untuk berhenti.\n")
+    print(f"Press Ctrl+C to stop.\n")
 
     # Track last fetch time per model (None = never fetched)
     last_fetched = {model: None for model in models}
@@ -539,7 +541,7 @@ def run_realtime(lat: float, lon: float, output_dir: str,
             time.sleep(CHECK_INTERVAL)
 
     except KeyboardInterrupt:
-        print(f"\nRealtime monitoring dihentikan.")
+        print(f"\nRealtime monitoring stopped.")
         print(f"Total fetches: {total_fetches}, Errors: {total_errors}")
 
 
@@ -601,13 +603,13 @@ def main():
             sys.exit(1)
 
     except KeyboardInterrupt:
-        print("\nProses dibatalkan oleh pengguna.")
+        print("\nProcess cancelled by user.")
         sys.exit(0)
     except SystemExit:
         # Let argparse exits pass through
         raise
     except Exception as e:
-        print(color_text(f"Error fatal: {format_exception_short(e)}", RED))
+        print(color_text(f"Fatal error: {format_exception_short(e)}", RED))
         sys.exit(1)
 
 
