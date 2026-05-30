@@ -80,6 +80,35 @@ def format_exception_short(error: Exception) -> str:
     return error.__class__.__name__
 
 
+def extract_http_error_detail(error: requests.HTTPError) -> str:
+    """Return a short, human-readable detail from an HTTP error response body."""
+    response = error.response
+    if response is None:
+        return ""
+
+    detail = ""
+    try:
+        payload = response.json()
+    except ValueError:
+        detail = response.text
+    else:
+        if isinstance(payload, dict):
+            detail = payload.get("reason") or payload.get("message") or payload.get("error") or ""
+            if isinstance(detail, bool):
+                detail = ""
+        else:
+            detail = str(payload)
+
+    detail = detail.strip()
+    if not detail:
+        return ""
+
+    max_len = 200
+    if len(detail) > max_len:
+        detail = detail[:max_len].rstrip() + "..."
+    return detail
+
+
 # ====================== CLI ARGUMENT PARSING ======================
 def validate_date(date_string):
     try:
@@ -297,9 +326,12 @@ def fetch_with_retry(model_name: str, lat: float, lon: float,
             ))
             time.sleep(delay)
         except requests.HTTPError as e:
-            print(color_text(
-                f"[{model_name}] {format_exception_short(e)}", RED
-            ))
+            detail = extract_http_error_detail(e)
+            if detail:
+                message = f"[{model_name}] {format_exception_short(e)}: {detail}"
+            else:
+                message = f"[{model_name}] {format_exception_short(e)}"
+            print(color_text(message, RED))
             raise
 
 

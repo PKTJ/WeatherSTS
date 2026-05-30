@@ -256,6 +256,7 @@ python inf_global_model.py --lat <LAT> --lon <LON> --start 2025-04-01 --end 2025
 - Realtime mode respects each model's update frequency (e.g., ICON 8x/day, GFS 4x/day, ECMWF 2x/day) and only fetches when new data is expected.
 - The script retries up to 3 times with exponential backoff on network errors.
 - If one model fails, the script continues fetching the remaining models.
+- For long batch ranges, it is recommended to request one model at a time using `--model <model>` to avoid API issues.
 
 ### How to Get the Weather Underground API Key
 
